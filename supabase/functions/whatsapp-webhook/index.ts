@@ -105,6 +105,23 @@ serve(async (req) => {
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      // Fetch integration config and owner_id
+      const { data: integrations, error: intError } = await supabase
+        .from("integrations")
+        .select("config, owner_id, is_active")
+        .eq("integration_type", "whatsapp")
+        .order("is_active", { ascending: false });
+
+      if (intError) {
+        console.error("Error fetching integrations:", intError);
+      }
+
+      console.log("Available WhatsApp integrations:", JSON.stringify(integrations));
+
+      const integration = integrations?.[0];
+      const ownerId = integration?.owner_id;
+      console.log("Resolved owner_id for this session:", ownerId);
+
       for (const entry of payload.entry || []) {
         for (const change of entry.changes || []) {
           const value = change.value;
