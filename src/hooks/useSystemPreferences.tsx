@@ -64,7 +64,7 @@ export function useSystemPreferences() {
   async function loadPreferences() {
     try {
       setLoading(true);
-      
+
       // Mesma lógica: Se sou agente, carrego as prefs do meu criador
       let targetOwnerId = profile?.id;
       if (profile?.created_by) {
@@ -91,7 +91,7 @@ export function useSystemPreferences() {
   }
 
   async function updatePreference<K extends keyof SystemPreferences>(
-    key: K, 
+    key: K,
     value: SystemPreferences[K]
   ) {
     if (!profile?.id) return;
@@ -107,7 +107,7 @@ export function useSystemPreferences() {
           value: newPreferences,
           owner_id: profile.id, // Salva para o usuário atual
           updated_at: new Date().toISOString()
-        }, { onConflict: 'key, owner_id' });
+        }, { onConflict: 'key,owner_id' });
 
       if (error) throw error;
     } catch (error) {
@@ -125,8 +125,9 @@ export function useSystemPreferences() {
         .upsert({
           key: 'system_preferences',
           value: DEFAULT_PREFERENCES,
-          updated_at: new Date().toISOString()
-        });
+          updated_at: new Date().toISOString(),
+          owner_id: profile.id
+        }, { onConflict: 'key,owner_id' });
       toast.success('Padrões restaurados');
     } catch (error) {
       toast.error('Erro ao restaurar padrões');

@@ -10,11 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { 
-  Users, 
-  Bot, 
-  Settings2, 
-  Plus, 
+import {
+  Users,
+  Bot,
+  Settings2,
+  Plus,
   Trash2,
   Save,
   RotateCcw,
@@ -45,21 +45,21 @@ export default function TenantSettings() {
   }
 
   const handleSaveEntity = () => {
-    updateConfig({ 
-      entity: { 
-        ...config.entity, 
-        departments 
-      } 
+    updateConfig({
+      entity: {
+        ...config.entity,
+        departments
+      }
     });
     toast.success("Configurações de entidade salvas!");
   };
 
   const handleSaveAI = () => {
-    updateConfig({ 
-      ai: { 
-        ...config.ai, 
-        helpTopics 
-      } 
+    updateConfig({
+      ai: {
+        ...config.ai,
+        helpTopics
+      }
     });
     toast.success("Configurações de IA salvas!");
   };
@@ -145,9 +145,9 @@ export default function TenantSettings() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nome da Entidade (singular)</Label>
-                  <Input 
+                  <Input
                     value={config.entity.entityName}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       entity: { ...config.entity, entityName: e.target.value }
                     })}
                     placeholder="Ex: servidor, cliente, paciente"
@@ -155,20 +155,20 @@ export default function TenantSettings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Nome da Entidade (plural)</Label>
-                  <Input 
+                  <Input
                     value={config.entity.entityNamePlural}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       entity: { ...config.entity, entityNamePlural: e.target.value }
                     })}
                     placeholder="Ex: servidores, clientes, pacientes"
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Departamentos/Setores</Label>
                 <div className="flex gap-2">
-                  <Input 
+                  <Input
                     value={newDepartment}
                     onChange={(e) => setNewDepartment(e.target.value)}
                     placeholder="Adicionar departamento..."
@@ -180,13 +180,13 @@ export default function TenantSettings() {
                 </div>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {departments.map((dept) => (
-                    <Badge 
-                      key={dept} 
+                    <Badge
+                      key={dept}
                       variant="secondary"
                       className="flex items-center gap-1"
                     >
                       {dept}
-                      <button 
+                      <button
                         onClick={() => removeDepartment(dept)}
                         className="ml-1 hover:text-destructive"
                       >
@@ -228,7 +228,7 @@ export default function TenantSettings() {
                   <select
                     className="w-full p-3 border rounded-lg bg-background"
                     value={config.ai.model || 'gpt-4o-mini'}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       ai: { ...config.ai, model: e.target.value }
                     })}
                   >
@@ -259,9 +259,9 @@ export default function TenantSettings() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Nome da IA</Label>
-                  <Input 
+                  <Input
                     value={config.ai.aiName}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       ai: { ...config.ai, aiName: e.target.value }
                     })}
                     placeholder="Ex: FloxBee"
@@ -269,9 +269,9 @@ export default function TenantSettings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Função da IA</Label>
-                  <Input 
+                  <Input
                     value={config.ai.aiRole}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       ai: { ...config.ai, aiRole: e.target.value }
                     })}
                     placeholder="Ex: assistente virtual"
@@ -279,13 +279,93 @@ export default function TenantSettings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Organização</Label>
-                  <Input 
+                  <Input
                     value={config.ai.aiOrganization}
-                    onChange={(e) => updateConfig({ 
+                    onChange={(e) => updateConfig({
                       ai: { ...config.ai, aiOrganization: e.target.value }
                     })}
                     placeholder="Ex: Empresa XYZ"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tópicos de Ajuda</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newTopic}
+                    onChange={(e) => setNewTopic(e.target.value)}
+                    placeholder="Adicionar tópico de ajuda..."
+                    onKeyPress={(e) => e.key === 'Enter' && addTopic()}
+                  />
+                  <Button onClick={addTopic} size="icon">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {helpTopics.map((topic) => (
+                    <Badge
+                      key={topic}
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      {topic}
+                      <button
+                        onClick={() => removeTopic(topic)}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tópicos que a IA pode ajudar os usuários
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Prompt de Sistema (Instruções para a IA)</Label>
+                <textarea
+                  className="w-full min-h-[200px] p-3 border rounded-lg bg-background font-mono text-sm resize-y"
+                  value={config.ai.systemPromptTemplate}
+                  onChange={(e) => updateConfig({
+                    ai: { ...config.ai, systemPromptTemplate: e.target.value }
+                  })}
+                  placeholder="Digite as instruções para a IA..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use variáveis: {'{'}{'{'} aiName {'}'}{'}'},  {'{'}{'{'} aiRole {'}'}{'}'},  {'{'}{'{'} aiOrganization {'}'}{'}'},  {'{'}{'{'} entityName {'}'}{'}'},  {'{'}{'{'} entityNamePlural {'}'}{'}'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Para listas use: {'{'}{'{'} #helpTopics {'}'}{'}'}...{'{'}{'{'} /helpTopics {'}'}{'}'}
+                </p>
+              </div>
+
+              <div className="space-y-2 p-4 bg-muted/50 rounded-lg border">
+                <Label className="text-sm font-semibold">Preview do Prompt</Label>
+                <div className="text-xs whitespace-pre-wrap font-mono bg-background p-3 rounded border max-h-[300px] overflow-y-auto">
+                  {(() => {
+                    // Generate preview with substituted variables
+                    try {
+                      const processedPrompt = config.ai.systemPromptTemplate
+                        .replace(/\{\{aiName\}\}/g, config.ai.aiName || 'IA')
+                        .replace(/\{\{aiRole\}\}/g, config.ai.aiRole || 'assistente')
+                        .replace(/\{\{aiOrganization\}\}/g, config.ai.aiOrganization || 'Organização')
+                        .replace(/\{\{entityName\}\}/g, config.entity.entityName || 'usuário')
+                        .replace(/\{\{entityNamePlural\}\}/g, config.entity.entityNamePlural || 'usuários');
+
+                      // Process help topics loop
+                      const topicsRegex = /\{\{#helpTopics\}\}([\s\S]*?)\{\{\/helpTopics\}\}/g;
+                      const processedWithTopics = processedPrompt.replace(topicsRegex, (_, template) => {
+                        return helpTopics.map(topic => template.replace(/\{\{\.\}\}/g, topic)).join('\n');
+                      });
+
+                      return processedWithTopics || "Digite um prompt acima para ver o preview...";
+                    } catch (e) {
+                      return "Erro ao gerar preview. Verifique a sintaxe do template.";
+                    }
+                  })()}
                 </div>
               </div>
 
@@ -319,7 +399,7 @@ export default function TenantSettings() {
                       Sistema de gestão de chamados e demandas
                     </p>
                   </div>
-                  <Switch 
+                  <Switch
                     checked={config.features.enableTickets}
                     onCheckedChange={(checked) => handleSaveFeatures({ enableTickets: checked })}
                   />

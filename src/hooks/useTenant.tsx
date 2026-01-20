@@ -26,13 +26,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   async function loadTenantConfig() {
     try {
       setLoading(true);
-      
+
       // Lógica:
       // 1. Se sou Admin, busco MINHA config.
       // 2. Se sou Agente, busco a config do meu CHEFE (profile.created_by).
-      
+
       let targetOwnerId = profile?.id;
-      
+
       if (profile?.created_by) {
         // Se eu fui criado por alguém, esse alguém é meu admin/gestor
         targetOwnerId = profile.created_by;
@@ -83,11 +83,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           value: updatedFullConfig,
           owner_id: profile.id, // Vínculo crucial
           updated_at: new Date().toISOString()
-        }, { onConflict: 'key, owner_id' }); // Conflito composto
+        }, { onConflict: 'key,owner_id' }); // Usa a constraint única criada
 
       if (error) throw error;
       toast.success("Configurações salvas!");
-      
+
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
       toast.error('Erro ao salvar configurações');
