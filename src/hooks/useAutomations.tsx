@@ -43,13 +43,7 @@ export function useAutomations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("automation_rules")
-        .select(`
-          *,
-          message_templates (
-            nome,
-            conteudo
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -63,7 +57,7 @@ export function useAutomations() {
         config: typeof rule.config === 'string'
           ? JSON.parse(rule.config)
           : rule.config
-      })) as AutomationRuleWithTemplate[];
+      })) as AutomationRule[];
     },
   });
 

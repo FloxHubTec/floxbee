@@ -59,76 +59,79 @@ const AppLayout: React.FC = () => {
             </SheetTrigger>
 
             {/* CONTEÚDO DO MENU MOBILE */}
-            <SheetContent side="left" className="p-0 w-72 bg-card border-r">
+            <SheetContent side="left" className="p-0 w-72 bg-card border-r flex flex-col">
               {/* Cabeçalho do Sheet (Acessibilidade) */}
-              <SheetHeader className="px-6 py-4 text-left">
+              <SheetHeader className="px-6 py-4 text-left shrink-0">
                 <SheetTitle className="flex items-center gap-2">
                   <FloxBeeLogo size={28} />
                   <span className="text-primary">Menu</span>
                 </SheetTitle>
               </SheetHeader>
 
-              <ScrollArea className="h-full px-4">
-                <div className="flex flex-col min-h-full">
-                  <nav className="flex flex-col gap-2 pt-2 pb-4">
-                    {filteredNavItems.map((item) => (
-                      <NavLink
-                        key={item.path}
-                        to={item.path}
-                        onClick={() => setOpen(false)} // FECHA O MENU AO CLICAR
-                        className={({ isActive }) =>
-                          cn(
-                            "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                          )
-                        }
-                      >
-                        <item.icon className="w-5 h-5" />
-                        <span>{item.label}</span>
-                      </NavLink>
-                    ))}
-                  </nav>
+              {/* Área scrollável com altura calculada */}
+              <div className="flex-1 overflow-hidden">
+                <ScrollArea className="h-full px-4">
+                  <div className="flex flex-col min-h-full pb-6">
+                    <nav className="flex flex-col gap-2 pt-2 pb-4">
+                      {filteredNavItems.map((item) => (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          onClick={() => setOpen(false)} // FECHA O MENU AO CLICAR
+                          className={({ isActive }) =>
+                            cn(
+                              "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                              isActive
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            )
+                          }
+                        >
+                          <item.icon className="w-5 h-5" />
+                          <span>{item.label}</span>
+                        </NavLink>
+                      ))}
+                    </nav>
 
-                  {/* Rodapé do Menu Mobile - Agora dentro do ScrollArea */}
-                  <div className="p-4 mt-auto border-t">
-                    <div className="mb-4 px-2 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                        {profile?.nome?.substring(0, 2).toUpperCase() || 'U'}
+                    {/* Rodapé do Menu Mobile - Dentro do ScrollArea */}
+                    <div className="mt-auto pt-4 border-t">
+                      <div className="mb-4 px-2 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                          {profile?.nome?.substring(0, 2).toUpperCase() || 'U'}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <p className="text-sm font-medium truncate">{profile?.nome || 'Usuário'}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{currentRole}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-medium truncate">{profile?.nome || 'Usuário'}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{currentRole}</p>
+
+                      <div className="space-y-1">
+                        <NavLink
+                          to="/settings"
+                          onClick={() => setOpen(false)}
+                          className={({ isActive }) =>
+                            cn(
+                              "flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                              isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary"
+                            )
+                          }
+                        >
+                          <Settings className="w-4 h-4" />
+                          <span>Configurações</span>
+                        </NavLink>
+
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors text-left"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>Sair</span>
+                        </button>
                       </div>
-                    </div>
-
-                    <div className="space-y-1 pb-4">
-                      <NavLink
-                        to="/settings"
-                        onClick={() => setOpen(false)}
-                        className={({ isActive }) =>
-                          cn(
-                            "flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                            isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary"
-                          )
-                        }
-                      >
-                        <Settings className="w-4 h-4" />
-                        <span>Configurações</span>
-                      </NavLink>
-
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors text-left"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Sair</span>
-                      </button>
                     </div>
                   </div>
-                </div>
-              </ScrollArea>
+                </ScrollArea>
+              </div>
             </SheetContent>
           </Sheet>
         </header>
