@@ -587,6 +587,32 @@ const Auth = () => {
           </CardContent>
         </Card>
 
+        {/* Footer com links para Política de Privacidade e Termos de Uso */}
+        <div className="mt-8 text-center space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Ao continuar, você concorda com nossos
+          </p>
+          <div className="flex items-center justify-center gap-4 text-xs">
+            <a
+              href="/termos-de-uso"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline font-medium"
+            >
+              Termos de Uso
+            </a>
+            <span className="text-muted-foreground">•</span>
+            <a
+              href="/politica-de-privacidade"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline font-medium"
+            >
+              Política de Privacidade
+            </a>
+          </div>
+        </div>
+
         <p className="text-center text-sm text-muted-foreground mt-6">
           Sistema de Fluxo Inteligente de Atendimento
         </p>

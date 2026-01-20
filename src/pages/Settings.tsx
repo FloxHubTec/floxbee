@@ -35,17 +35,10 @@ import SystemPreferences from '@/components/settings/SystemPreferences';
 import TenantSettings from '@/components/settings/TenantSettings';
 import NotificationSettings from '@/components/tickets/NotificationSettings';
 import ChangePasswordDialog from '@/components/auth/ChangePasswordDialog';
+import IntegrationsSettings from '@/components/settings/IntegrationsSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-// Configuração das Integrações (Mock Data para Visualização)
-const INTEGRATIONS_LIST = [
-  { id: 'whatsapp', label: 'WhatsApp Business API', status: 'Conectado', connected: true, description: 'Envio e recebimento de mensagens via Meta.' },
-  { id: 'openai', label: 'OpenAI API', status: 'Conectado', connected: true, description: 'Inteligência Artificial para respostas automáticas.' },
-  { id: 'smtp', label: 'Email SMTP', status: 'Não configurado', connected: false, description: 'Servidor de email para notificações.' },
-  { id: 'webhook', label: 'Webhook Externo', status: 'Não configurado', connected: false, description: 'Envio de eventos para sistemas terceiros.' },
-];
 
 // Componente Interno para Edição de Perfil
 const EditProfileDialog: React.FC<{
@@ -374,47 +367,7 @@ const Settings: React.FC = () => {
 
           {canManageSystem && (
             <TabsContent value="integrations" className="space-y-6 animate-in fade-in-50 duration-300">
-              <Card>
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Globe className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle>Integrações</CardTitle>
-                    <CardDescription>Conecte o FloxBee com outros sistemas</CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {INTEGRATIONS_LIST.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-start justify-between p-4 rounded-lg border bg-card hover:bg-secondary/20 transition-colors"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-foreground">{item.label}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${item.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                              {item.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{item.description}</p>
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 gap-1"
-                          onClick={() => handleConfigureIntegration(item.id)}
-                        >
-                          <span className="text-xs">Configurar</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              <IntegrationsSettings />
 
               <Card>
                 <CardHeader className="flex flex-row items-center gap-4">
