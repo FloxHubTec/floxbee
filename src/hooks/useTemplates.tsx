@@ -43,11 +43,25 @@ export const useTemplates = () => {
   });
 
   const createTemplate = useMutation({
-    mutationFn: async (template: Omit<TemplateInsert, 'id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (template: Omit<TemplateInsert, 'id' | 'created_at' | 'updated_at' | 'created_by'>) => {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Get profile ID from auth user ID
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user?.id)
+        .single();
+
       const variables = extractVariables(template.conteudo);
       const { data, error } = await supabase
         .from('message_templates')
-        .insert({ ...template, variaveis: variables })
+        .insert({
+          ...template,
+          variaveis: variables,
+          created_by: profile?.id
+        })
         .select()
         .single();
 
@@ -62,7 +76,7 @@ export const useTemplates = () => {
   const updateTemplate = useMutation({
     mutationFn: async ({ id, ...template }: TemplateUpdate & { id: string }) => {
       const updateData: TemplateUpdate = { ...template };
-      
+
       if (template.conteudo) {
         updateData.variaveis = extractVariables(template.conteudo);
       }
@@ -109,6 +123,8 @@ export const useTemplates = () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] });
     },
   });
+
+
 
   return {
     templates,

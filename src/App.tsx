@@ -26,6 +26,7 @@ import PublicLandingPage from "./pages/PublicLandingPage";
 import ApiDocs from "./pages/ApiDocs";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import Departments from "./pages/Departments";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,7 @@ const App = () => (
                 <Route path="/contacts" element={<Contacts />} />
                 <Route path="/tickets" element={<Tickets />} />
                 <Route path="/campaigns" element={<Campaigns />} />
+                <Route path="/departments" element={<Departments />} />
                 <Route path="/qr-codes" element={<QRCodes />} />
                 <Route path="/landing-pages" element={<LandingPages />} />
                 <Route path="/templates" element={<Templates />} />

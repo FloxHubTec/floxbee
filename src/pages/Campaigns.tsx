@@ -378,9 +378,9 @@ const Campaigns: React.FC = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todas as Secretarias</SelectItem>
-                        {secretarias.map((sec) => (
-                          <SelectItem key={sec} value={sec}>
-                            {sec}
+                        {secretarias.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -524,7 +524,9 @@ const Campaigns: React.FC = () => {
                     <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                       <span className="text-sm text-muted-foreground">Audiência</span>
                       <span className="text-sm font-medium">
-                        {selectedSecretaria === 'all' ? 'Todas as secretarias' : selectedSecretaria}
+                        {selectedSecretaria === 'all'
+                          ? 'Todas as secretarias'
+                          : secretarias.find(d => d.id === selectedSecretaria)?.name || selectedSecretaria}
                         {selectedTags.length > 0 && ` + ${selectedTags.length} tags`}
                       </span>
                     </div>
@@ -742,7 +744,7 @@ const Campaigns: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <Filter className="w-4 h-4 text-muted-foreground" />
                               <span className="text-muted-foreground">
-                                {campaign.filtro_secretaria}
+                                {secretarias.find(d => d.id === campaign.filtro_secretaria)?.name || campaign.filtro_secretaria}
                               </span>
                             </div>
                           )}

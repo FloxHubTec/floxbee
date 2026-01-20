@@ -14,7 +14,6 @@ import { cn } from '@/lib/utils';
 
 export interface TicketFilters {
     prioridade: 'all' | 'urgente' | 'alta' | 'media' | 'baixa';
-    categoria: string; // 'all' ou nome da categoria
     agente: string; // 'all', 'unassigned', ou ID do agente
     sla: 'all' | 'ok' | 'warning' | 'expired';
 }
@@ -23,18 +22,15 @@ interface TicketFilterPopoverProps {
     filters: TicketFilters;
     onFiltersChange: (filters: TicketFilters) => void;
     agentes?: Array<{ id: string; nome: string }>;
-    categorias?: string[];
 }
 
 export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
     filters,
     onFiltersChange,
     agentes = [],
-    categorias = [],
 }) => {
     const hasActiveFilters =
         filters.prioridade !== 'all' ||
-        filters.categoria !== 'all' ||
         filters.agente !== 'all' ||
         filters.sla !== 'all';
 
@@ -48,7 +44,6 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
     const clearFilters = () => {
         onFiltersChange({
             prioridade: 'all',
-            categoria: 'all',
             agente: 'all',
             sla: 'all',
         });
@@ -199,35 +194,6 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
                         </RadioGroup>
                     </div>
 
-                    {/* Filtro de Categoria */}
-                    {categorias.length > 0 && (
-                        <>
-                            <Separator />
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">Categoria</Label>
-                                <RadioGroup
-                                    value={filters.categoria}
-                                    onValueChange={(value) => handleFilterChange('categoria', value)}
-                                    className="max-h-40 overflow-y-auto"
-                                >
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="all" id="categoria-all" />
-                                        <Label htmlFor="categoria-all" className="font-normal cursor-pointer">
-                                            Todas
-                                        </Label>
-                                    </div>
-                                    {categorias.map((cat) => (
-                                        <div key={cat} className="flex items-center space-x-2">
-                                            <RadioGroupItem value={cat} id={`categoria-${cat}`} />
-                                            <Label htmlFor={`categoria-${cat}`} className="font-normal cursor-pointer">
-                                                {cat}
-                                            </Label>
-                                        </div>
-                                    ))}
-                                </RadioGroup>
-                            </div>
-                        </>
-                    )}
 
                     {/* Resumo dos filtros ativos */}
                     {hasActiveFilters && (
@@ -246,11 +212,6 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
                                             {filters.agente === 'unassigned'
                                                 ? 'Não Atribuído'
                                                 : agentes.find((a) => a.id === filters.agente)?.nome || 'Agente'}
-                                        </Badge>
-                                    )}
-                                    {filters.categoria !== 'all' && (
-                                        <Badge variant="secondary" className="text-xs">
-                                            {filters.categoria}
                                         </Badge>
                                     )}
                                     {filters.sla !== 'all' && (

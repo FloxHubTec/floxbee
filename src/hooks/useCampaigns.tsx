@@ -29,7 +29,7 @@ export const useCampaign = (campaignId: string | null) => {
     queryKey: ['campaign', campaignId],
     queryFn: async () => {
       if (!campaignId) return null;
-      
+
       const { data, error } = await supabase
         .from('campaigns')
         .select(`
@@ -54,14 +54,22 @@ export const useCreateCampaign = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (campaign: Omit<CampaignInsert, 'id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (campaign: Omit<CampaignInsert, 'id' | 'created_at' | 'updated_at' | 'created_by'>) => {
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      
+
+      // Get profile ID from auth user ID
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user?.id)
+        .single();
+
       const { data, error } = await supabase
         .from('campaigns')
         .insert({
           ...campaign,
-          created_by: user?.id,
+          created_by: profile?.id,
         })
         .select()
         .single();
@@ -127,11 +135,11 @@ export const useAddCampaignRecipients = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ 
-      campaignId, 
-      contactIds 
-    }: { 
-      campaignId: string; 
+    mutationFn: async ({
+      campaignId,
+      contactIds
+    }: {
+      campaignId: string;
       contactIds: string[];
     }) => {
       const recipients = contactIds.map(contactId => ({
@@ -167,12 +175,12 @@ export const useSendCampaign = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ 
+    mutationFn: async ({
       campaignId,
       scheduledAt,
       frequencyLimitHours = 24,
       bypassFrequencyCheck = false,
-    }: { 
+    }: {
       campaignId: string;
       scheduledAt?: Date;
       frequencyLimitHours?: number;
@@ -197,7 +205,7 @@ export const useSendCampaign = () => {
       if (scheduledAt && scheduledAt > new Date()) {
         const { error: updateError } = await supabase
           .from('campaigns')
-          .update({ 
+          .update({
             status: 'agendada',
             agendado_para: scheduledAt.toISOString(),
           })
@@ -210,7 +218,7 @@ export const useSendCampaign = () => {
       // Update status to sending
       await supabase
         .from('campaigns')
-        .update({ 
+        .update({
           status: 'enviando',
           iniciado_em: new Date().toISOString(),
         })
@@ -299,22 +307,20 @@ export const useSendCampaign = () => {
   });
 };
 
-// Get unique secretarias for filter
+// Get departments for filter (replacing old useSecretarias)
 export const useSecretarias = () => {
   return useQuery({
-    queryKey: ['secretarias'],
+    queryKey: ['departments-for-campaigns'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('contacts')
-        .select('secretaria')
-        .not('secretaria', 'is', null)
-        .order('secretaria');
+        .from('departments')
+        .select('id, name')
+        .eq('active', true)
+        .order('name');
 
       if (error) throw error;
-      
-      // Get unique values
-      const unique = [...new Set(data.map(c => c.secretaria).filter(Boolean))];
-      return unique as string[];
+
+      return data || [];
     },
   });
 };
@@ -329,7 +335,7 @@ export const useTags = () => {
         .select('tags');
 
       if (error) throw error;
-      
+
       // Flatten and get unique tags
       const allTags = data.flatMap(c => c.tags || []);
       const unique = [...new Set(allTags)];
@@ -350,7 +356,7 @@ export const useContactsCount = (filter: { secretaria?: string; tags?: string[] 
         .not('whatsapp', 'is', null);
 
       if (filter.secretaria && filter.secretaria !== 'all') {
-        query = query.eq('secretaria', filter.secretaria);
+        query = query.eq('department_id', filter.secretaria); // Now using department_id
       }
 
       if (filter.tags && filter.tags.length > 0) {
@@ -378,7 +384,7 @@ export const useContactsByFilter = (filter: { secretaria?: string; tags?: string
         .not('whatsapp', 'is', null);
 
       if (filter.secretaria && filter.secretaria !== 'all') {
-        query = query.eq('secretaria', filter.secretaria);
+        query = query.eq('department_id', filter.secretaria); // Now using department_id
       }
 
       if (filter.tags && filter.tags.length > 0) {

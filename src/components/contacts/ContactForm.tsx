@@ -13,13 +13,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Controller } from "react-hook-form";
+import { useActiveDepartments } from "@/hooks/useDepartments";
 import { Contact, ContactInsert } from "@/hooks/useContacts";
 
 const contactSchema = z.object({
   nome: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   whatsapp: z.string().min(10, "WhatsApp inválido"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
-  secretaria: z.string().optional(),
+  department_id: z.string().nullable().optional(),
   matricula: z.string().optional(),
   cargo: z.string().optional(),
   data_nascimento: z.string().optional(),
@@ -42,10 +51,13 @@ export const ContactForm: React.FC<ContactFormProps> = ({
   onSubmit,
   isLoading,
 }) => {
+  const { data: departments = [] } = useActiveDepartments();
+
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -53,7 +65,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       nome: contact?.nome || "",
       whatsapp: contact?.whatsapp || "",
       email: contact?.email || "",
-      secretaria: contact?.secretaria || "",
+      department_id: (contact as any)?.department_id || null,
       matricula: contact?.matricula || "",
       cargo: contact?.cargo || "",
       data_nascimento: (contact as any)?.data_nascimento || "",
@@ -66,7 +78,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
         nome: contact.nome,
         whatsapp: contact.whatsapp,
         email: contact.email || "",
-        secretaria: contact.secretaria || "",
+        department_id: (contact as any).department_id || null,
         matricula: contact.matricula || "",
         cargo: contact.cargo || "",
         data_nascimento: (contact as any).data_nascimento || "",
@@ -76,7 +88,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
         nome: "",
         whatsapp: "",
         email: "",
-        secretaria: "",
+        department_id: null,
         matricula: "",
         cargo: "",
         data_nascimento: "",
@@ -97,7 +109,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       nome: data.nome,
       whatsapp,
       email: data.email || null,
-      secretaria: data.secretaria || null,
+      department_id: data.department_id || null,
       matricula: data.matricula || null,
       cargo: data.cargo || null,
       data_nascimento: data.data_nascimento || null,
@@ -160,11 +172,27 @@ export const ContactForm: React.FC<ContactFormProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="secretaria">Secretaria</Label>
-              <Input
-                id="secretaria"
-                placeholder="Ex: Saúde"
-                {...register("secretaria")}
+              <Label htmlFor="department_id">Departamento</Label>
+              <Controller
+                name="department_id"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || undefined}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Nenhum departamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               />
             </div>
             <div className="space-y-2">

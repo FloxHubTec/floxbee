@@ -102,7 +102,6 @@ export const useCreateTicket = () => {
     mutationFn: async (ticket: {
       titulo: string;
       descricao?: string;
-      categoria?: string;
       prioridade?: "baixa" | "media" | "alta" | "urgente";
       contact_id?: string;
       assigned_to?: string;
@@ -115,12 +114,10 @@ export const useCreateTicket = () => {
         .insert({
           titulo: ticket.titulo,
           descricao: ticket.descricao,
-          categoria: ticket.categoria,
           prioridade: prioridade,
           contact_id: ticket.contact_id || null,
           assigned_to: ticket.assigned_to || null,
           status: ticket.assigned_to ? "em_analise" : "aberto_ia",
-          sla_deadline: slaDeadline,
         })
         .select()
         .single();
@@ -161,7 +158,6 @@ export const useUpdateTicket = () => {
       data: {
         titulo: string;
         descricao?: string;
-        categoria?: string;
         prioridade?: "baixa" | "media" | "alta" | "urgente";
         contact_id?: string | null;
         assigned_to?: string | null;

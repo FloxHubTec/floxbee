@@ -248,18 +248,6 @@ const TicketCard: React.FC<TicketCardProps> = ({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              {ticket.assignee_profile && (
-                <span className="text-xs text-muted-foreground">
-                  → {ticket.assignee_profile.nome}
-                </span>
-              )}
-              {ticket.categoria && (
-                <Badge variant="outline" className="text-xs">
-                  {ticket.categoria}
-                </Badge>
-              )}
-            </div>
           </div>
         </div>
       )}
@@ -276,7 +264,6 @@ const Tickets: React.FC = () => {
   // Estado de filtros
   const [filters, setFilters] = useState<TicketFilters>({
     prioridade: 'all',
-    categoria: 'all',
     agente: 'all',
     sla: 'all',
   });
@@ -305,11 +292,6 @@ const Tickets: React.FC = () => {
     return 'ok';
   };
 
-  // Lista de categorias únicas
-  const categorias = useMemo(() => {
-    const cats = new Set(tickets.map(t => t.categoria).filter(Boolean) as string[]);
-    return Array.from(cats);
-  }, [tickets]);
 
   // Filtragem e ordenação de tickets
   const getTicketsByStatus = useMemo(() => {
@@ -329,11 +311,6 @@ const Tickets: React.FC = () => {
 
         // Filtro de prioridade
         if (filters.prioridade !== 'all' && ticket.prioridade !== filters.prioridade) {
-          return false;
-        }
-
-        // Filtro de categoria
-        if (filters.categoria !== 'all' && ticket.categoria !== filters.categoria) {
           return false;
         }
 
@@ -423,7 +400,6 @@ const Tickets: React.FC = () => {
           data: {
             titulo: data.titulo,
             descricao: data.descricao,
-            categoria: data.categoria,
             prioridade: data.prioridade,
             contact_id: data.contact_id || null,
             assigned_to: data.assigned_to || null,
@@ -434,7 +410,6 @@ const Tickets: React.FC = () => {
         await createTicket.mutateAsync({
           titulo: data.titulo,
           descricao: data.descricao,
-          categoria: data.categoria,
           prioridade: data.prioridade,
           contact_id: data.contact_id,
           assigned_to: data.assigned_to,
@@ -507,7 +482,6 @@ const Tickets: React.FC = () => {
               filters={filters}
               onFiltersChange={setFilters}
               agentes={agentes.map(a => ({ id: a.id, nome: a.nome }))}
-              categorias={categorias}
             />
             <Button className="gap-2" onClick={() => handleOpenForm()}>
               <Plus className="w-4 h-4" />

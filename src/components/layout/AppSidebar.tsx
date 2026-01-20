@@ -12,7 +12,8 @@ import {
   Sparkles,
   Settings,
   LogOut,
-  Code
+  Code,
+  Building2
 } from 'lucide-react';
 import FloxBeeLogo from '../FloxBeeLogo';
 import { cn } from '@/lib/utils';
@@ -75,6 +76,12 @@ export const navItems: NavItem[] = [
     label: 'Templates',
     path: '/templates',
     roles: ['superadmin', 'admin', 'supervisor']
+  },
+  {
+    icon: Building2,
+    label: 'Departamentos',
+    path: '/departments',
+    roles: ['superadmin', 'admin']
   },
   {
     icon: Bot,

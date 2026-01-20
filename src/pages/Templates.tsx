@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  Plus, 
-  Search, 
-  FileText, 
-  Edit, 
-  Trash2, 
+import {
+  Plus,
+  Search,
+  FileText,
+  Edit,
+  Trash2,
   Copy,
   ToggleLeft,
   ToggleRight,
@@ -38,9 +38,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  useTemplates, 
-  Template, 
+import {
+  useTemplates,
+  Template,
   TEMPLATE_CATEGORIES,
   previewTemplate,
   SAMPLE_VARIABLES
@@ -51,7 +51,7 @@ import FloxBeeLogo from '@/components/FloxBeeLogo';
 const Templates: React.FC = () => {
   const { templates, isLoading, createTemplate, updateTemplate, deleteTemplate, toggleTemplateStatus } = useTemplates();
   const { toast } = useToast();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
@@ -61,12 +61,12 @@ const Templates: React.FC = () => {
 
   // Filter templates
   const filteredTemplates = templates.filter(template => {
-    const matchesSearch = 
+    const matchesSearch =
       template.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
       template.conteudo.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesCategory = categoryFilter === 'all' || template.categoria === categoryFilter;
-    
+
     return matchesSearch && matchesCategory;
   });
 
@@ -89,7 +89,7 @@ const Templates: React.FC = () => {
 
   const handleUpdate = async (data: { nome: string; conteudo: string; categoria?: string }) => {
     if (!editingTemplate) return;
-    
+
     try {
       await updateTemplate.mutateAsync({ id: editingTemplate.id, ...data });
       toast({
@@ -108,7 +108,7 @@ const Templates: React.FC = () => {
 
   const handleDelete = async () => {
     if (!deletingTemplate) return;
-    
+
     try {
       await deleteTemplate.mutateAsync(deletingTemplate.id);
       toast({
@@ -140,6 +140,8 @@ const Templates: React.FC = () => {
       });
     }
   };
+
+
 
   const handleCopyTemplate = (template: Template) => {
     navigator.clipboard.writeText(template.conteudo);
@@ -221,11 +223,10 @@ const Templates: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTemplates.map((template) => (
-              <Card 
-                key={template.id} 
-                className={`relative transition-all hover:shadow-md ${
-                  !template.ativo ? 'opacity-60' : ''
-                }`}
+              <Card
+                key={template.id}
+                className={`relative transition-all hover:shadow-md ${!template.ativo ? 'opacity-60' : ''
+                  }`}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
@@ -237,11 +238,6 @@ const Templates: React.FC = () => {
                         <Badge variant="outline" className="text-xs">
                           {getCategoryLabel(template.categoria)}
                         </Badge>
-                        {!template.ativo && (
-                          <Badge variant="secondary" className="text-xs">
-                            Inativo
-                          </Badge>
-                        )}
                       </div>
                     </div>
                   </div>

@@ -60,21 +60,34 @@ serve(async (req) => {
       );
     }
 
-    // Initialize Supabase client with service role for bypassing RLS
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify the user token is valid (but use service role for operations)
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    // Authentication Logic:
+    // 1. If it's a request from the WhatsApp Webhook (internal service-to-service), 
+    //    it uses the SERVICE_ROLE_KEY.
+    // 2. If it's from the frontend, it uses a USER JWT.
 
-    if (authError || !user) {
-      console.error("Auth validation error:", authError);
-      return new Response(
-        JSON.stringify({ error: "Invalid or expired token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const parts = authHeader.split(' ');
+    const token = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+
+    let isServiceCall = token === supabaseServiceKey;
+    let user = null;
+
+    if (!isServiceCall) {
+      // Verify a user JWT
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+
+      if (authError || !authUser) {
+        console.error("Auth validation error:", authError);
+        return new Response(
+          JSON.stringify({ error: `Auth validation failed: ${authError?.message || 'Invalid token'}` }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      user = authUser;
     }
 
     const { messages, context, stream = false }: ChatRequest = await req.json();
@@ -100,7 +113,7 @@ serve(async (req) => {
     ];
 
     console.log("AI Chat Request (OpenAI):", {
-      userId: user.id,
+      identity: user ? `User: ${user.id}` : "Service Role",
       messagesCount: messages.length,
       hasContext: !!context,
       stream

@@ -380,7 +380,9 @@ const Contacts: React.FC = () => {
                     <TableCell className="hidden md:table-cell">
                       <div className="flex items-center gap-2">
                         <Building2 className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm truncate max-w-[150px]">{(contact as any).secretaria || "-"}</span>
+                        <span className="text-sm truncate max-w-[150px]">
+                          {(contact as any).department?.name || (contact as any).secretaria || "-"}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm hidden lg:table-cell">{(contact as any).matricula || "-"}</TableCell>
@@ -431,7 +433,7 @@ const Contacts: React.FC = () => {
                     <SheetTitle className="text-2xl">{selectedContact.nome}</SheetTitle>
                     <SheetDescription className="flex items-center justify-center gap-2 mt-1">
                       <Building2 className="w-4 h-4" />
-                      {(selectedContact as any).secretaria || "Sem secretaria"}
+                      {(selectedContact as any).department?.name || (selectedContact as any).secretaria || "Sem departamento"}
                     </SheetDescription>
                   </div>
                 </div>

@@ -53,13 +53,35 @@ serve(async (req) => {
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    const VERIFY_TOKEN = (Deno.env.get("WHATSAPP_VERIFY_TOKEN") || "floxbee_verify_token_2024").trim();
-
     console.log("Webhook verification attempt:", {
       mode,
       receivedToken: token,
-      expectedToken: VERIFY_TOKEN,
       challenge: challenge?.substring(0, 20),
+    });
+
+    // Initialize Supabase to get verify token from database
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch integration config and owner_id
+    // We try to find any WhatsApp integration, prioritizing active ones
+    const { data: integrations } = await supabase
+      .from("integrations")
+      .select("config, owner_id, is_active")
+      .eq("integration_type", "whatsapp")
+      .order("is_active", { ascending: false });
+
+    const integration = integrations?.[0];
+    const ownerId = integration?.owner_id;
+
+    const VERIFY_TOKEN = integration?.config?.webhook_verify_token ||
+      Deno.env.get("WHATSAPP_VERIFY_TOKEN") ||
+      "floxbee_verify_token_2024";
+
+    console.log("Token comparison:", {
+      receivedToken: token,
+      expectedToken: VERIFY_TOKEN,
       tokensMatch: token === VERIFY_TOKEN,
     });
 
@@ -159,6 +181,7 @@ serve(async (req) => {
                       first_message_at: new Date().toISOString(),
                       wa_profile_name: contactName,
                     },
+                    owner_id: ownerId,
                   })
                   .select("id")
                   .single();
@@ -242,6 +265,7 @@ serve(async (req) => {
                     is_bot_active: true,
                     unread_count: 1,
                     last_message_at: new Date().toISOString(),
+                    owner_id: ownerId,
                   })
                   .select("id")
                   .single();
@@ -308,6 +332,7 @@ serve(async (req) => {
                       messages: [{ role: "user", content: messageContent }],
                       context: {
                         servidor_nome: contactName,
+                        owner_id: ownerId,
                       },
                     }),
                   });

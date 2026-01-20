@@ -33,7 +33,6 @@ import type { TicketWithRelations } from "@/hooks/useTickets";
 const ticketSchema = z.object({
   titulo: z.string().min(3, "Título deve ter pelo menos 3 caracteres"),
   descricao: z.string().optional(),
-  categoria: z.string().optional(),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
   contact_id: z.string().optional(),
   assigned_to: z.string().optional(),
@@ -51,17 +50,6 @@ interface TicketFormProps {
   agentes?: Array<{ id: string; nome: string }>;
 }
 
-const categorias = [
-  "Acesso/Login",
-  "Contracheque",
-  "Férias",
-  "Licença",
-  "Benefícios",
-  "Atualização Cadastral",
-  "Reclamação",
-  "Sugestão",
-  "Outros",
-];
 
 // SLA em horas baseado na prioridade
 const SLA_HOURS = {
@@ -87,7 +75,6 @@ export const TicketForm: React.FC<TicketFormProps> = ({
     defaultValues: {
       titulo: "",
       descricao: "",
-      categoria: "",
       prioridade: "media",
       contact_id: "",
       assigned_to: "",
@@ -100,7 +87,6 @@ export const TicketForm: React.FC<TicketFormProps> = ({
       form.reset({
         titulo: ticket.titulo,
         descricao: ticket.descricao || "",
-        categoria: ticket.categoria || "",
         prioridade: ticket.prioridade,
         contact_id: ticket.contact_id || "",
         assigned_to: ticket.assigned_to || "",
@@ -109,7 +95,6 @@ export const TicketForm: React.FC<TicketFormProps> = ({
       form.reset({
         titulo: "",
         descricao: "",
-        categoria: "",
         prioridade: "media",
         contact_id: "",
         assigned_to: "",
@@ -167,32 +152,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="categoria"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Categoria</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {categorias.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+            <div>
               <FormField
                 control={form.control}
                 name="prioridade"
@@ -296,6 +256,6 @@ export const TicketForm: React.FC<TicketFormProps> = ({
           </form>
         </Form>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 };

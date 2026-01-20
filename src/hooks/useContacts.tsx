@@ -24,7 +24,10 @@ export const useContacts = () => {
       // Não precisamos filtrar por owner_id aqui.
       const { data, error } = await supabase
         .from("contacts")
-        .select("*")
+        .select(`
+          *,
+          department:department_id(id, name)
+        `)
         .order("nome", { ascending: true });
 
       if (error) {
@@ -38,10 +41,21 @@ export const useContacts = () => {
   // 2. CRIAR CONTATO
   const createContact = useMutation({
     mutationFn: async (contact: ContactInsert) => {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Get profile ID from auth user ID
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user?.id)
+        .single();
+
       const { data, error } = await supabase
         .from("contacts")
         .insert({
           ...contact,
+          owner_id: profile?.id,
           ativo: true // Garante que nasce ativo por padrão
         })
         .select()
@@ -142,7 +156,7 @@ export const useImportContacts = () => {
           const result: string[] = [];
           let current = "";
           let inQuotes = false;
-          
+
           for (let i = 0; i < line.length; i++) {
             const char = line[i];
             if (char === '"') {
@@ -183,7 +197,7 @@ export const useImportContacts = () => {
         ["whatsapp", "telefone", "celular", "phone", "tel", "fone"].includes(h)
       );
       const emailIndex = headers.findIndex((h) => ["email", "e-mail", "e_mail"].includes(h));
-      
+
       // Colunas opcionais (Verifique se existem no seu banco)
       const secretariaIndex = headers.findIndex((h) => ["secretaria", "setor", "lotação"].includes(h));
       const matriculaIndex = headers.findIndex((h) => ["matricula", "matrícula", "id"].includes(h));
@@ -208,7 +222,7 @@ export const useImportContacts = () => {
         } else if (whatsapp.length === 10) {
           whatsapp = `55${whatsapp.slice(0, 2)}9${whatsapp.slice(2)}`; // Ex: 1188887777 -> 5511988887777
         }
-        
+
         // Pula números inválidos
         if (whatsapp.length < 10) continue;
 
@@ -255,11 +269,11 @@ export const useImportContacts = () => {
 
       for (let i = 0; i < contactsToInsert.length; i += batchSize) {
         const batch = contactsToInsert.slice(i, i + batchSize);
-        
+
         // Upsert usando WhatsApp como chave única para evitar duplicados
         const { error } = await supabase.from("contacts").upsert(batch, {
           onConflict: "whatsapp",
-          ignoreDuplicates: false, 
+          ignoreDuplicates: false,
         });
 
         if (error) throw error;
@@ -267,7 +281,7 @@ export const useImportContacts = () => {
       }
 
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      
+
       toast({
         title: "Importação concluída!",
         description: `${inserted} contatos importados com sucesso.`,
@@ -342,14 +356,14 @@ export const useValidateWhatsApp = () => {
       for (const result of results) {
         const contact = contacts.find((c) => c.whatsapp === result.formatted || c.whatsapp === result.number);
         if (contact && result.valid) {
-            // Verifica se a tabela tem a coluna whatsapp_validated antes de atualizar
-            // Se não tiver, você deve criar ou remover essa linha
-            await supabase
+          // Verifica se a tabela tem a coluna whatsapp_validated antes de atualizar
+          // Se não tiver, você deve criar ou remover essa linha
+          await supabase
             .from("contacts")
             .update({
               whatsapp: result.formatted,
               // whatsapp_validated: true, // Descomente se tiver essa coluna
-            } as any) 
+            } as any)
             .eq("id", contact.id);
           updatedCount++;
         }
