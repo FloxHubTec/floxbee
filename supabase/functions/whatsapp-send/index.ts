@@ -6,8 +6,9 @@ const corsHeaders = {
 };
 
 interface SendMessageRequest {
-  to: string; // WhatsApp number with country code (e.g., "5511999999999")
+  to: string;
   message: string;
+  owner_id?: string;
   type?: "text" | "template";
   template?: {
     name: string;
@@ -22,9 +23,10 @@ interface SendMessageRequest {
 interface SendBulkRequest {
   recipients: string[];
   message: string;
+  owner_id?: string;
   type?: "text" | "template";
   template?: SendMessageRequest["template"];
-  delay_ms?: number; // Delay between messages to avoid rate limiting
+  delay_ms?: number;
 }
 
 serve(async (req) => {
@@ -50,11 +52,12 @@ serve(async (req) => {
 
     // Bypass check for Service Role (Internal/External backend calls)
     const isServiceCall = token === supabaseServiceKey;
+    let fallbackOwnerId = null;
+
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (!isServiceCall) {
-      // Create a temporary client just for auth check
-      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
       if (authError || !user) {
@@ -64,36 +67,64 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      // Get profile for the authenticated user to find owner_id
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('owner_id')
+        .eq('user_id', user.id)
+        .single();
+      fallbackOwnerId = profile?.owner_id;
     }
 
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    const body = await req.json();
+    const url = new URL(req.url);
+    const isBulk = url.pathname.endsWith("/bulk");
+    const ownerId = body.owner_id || fallbackOwnerId;
 
-    if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
-      console.error("WhatsApp credentials not configured");
+    // Fetch Credentials from Database
+    let whatsappToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+    let phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+
+    if (ownerId) {
+      const { data: integrations } = await supabase
+        .from("integrations")
+        .select("config, is_active")
+        .eq("integration_type", "whatsapp")
+        .eq("owner_id", ownerId)
+        .order("is_active", { ascending: false });
+
+      const integration = integrations?.[0];
+      if (integration?.config?.access_token && integration?.config?.phone_number_id) {
+        whatsappToken = integration.config.access_token;
+        phoneNumberId = integration.config.phone_number_id;
+        console.log("Using database credentials for owner:", ownerId);
+      } else {
+        console.warn("No valid WhatsApp integration found for owner, using env fallback:", ownerId);
+      }
+    }
+
+    if (!whatsappToken || !phoneNumberId) {
+      console.error("WhatsApp credentials not configured (tried DB and ENV)");
       return new Response(
         JSON.stringify({
           error: "WhatsApp not configured",
-          details: "WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID are required",
-          mock: true
+          details: "Missing access token or phone number ID"
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const url = new URL(req.url);
-    const isBulk = url.pathname.endsWith("/bulk");
-
     if (isBulk) {
       // Handle bulk sending
-      const { recipients, message, type = "text", template, delay_ms = 100 }: SendBulkRequest = await req.json();
+      const { recipients, message, type = "text", template, delay_ms = 100 }: SendBulkRequest = body;
 
-      console.log("Bulk send request:", { recipientCount: recipients.length, type });
+      console.log("Bulk send request:", { recipientCount: recipients.length, type, ownerId });
 
       const results = [];
       for (const recipient of recipients) {
         try {
-          const result = await sendWhatsAppMessage(WHATSAPP_TOKEN, PHONE_NUMBER_ID, {
+          const result = await sendWhatsAppMessage(whatsappToken, phoneNumberId, {
             to: recipient,
             message,
             type,
@@ -119,11 +150,11 @@ serve(async (req) => {
       );
     } else {
       // Handle single message
-      const { to, message, type = "text", template }: SendMessageRequest = await req.json();
+      const { to, message, type = "text", template }: SendMessageRequest = body;
 
-      console.log("Send message request:", { to, type, messageLength: message?.length });
+      console.log("Send message request:", { to, type, ownerId });
 
-      const result = await sendWhatsAppMessage(WHATSAPP_TOKEN, PHONE_NUMBER_ID, { to, message, type, template });
+      const result = await sendWhatsAppMessage(whatsappToken, phoneNumberId, { to, message, type, template });
 
       return new Response(
         JSON.stringify(result),

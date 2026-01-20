@@ -383,6 +383,7 @@ serve(async (req) => {
                         body: JSON.stringify({
                           to: whatsappNumber,
                           message: aiData.message,
+                          owner_id: ownerId,
                         }),
                       });
 

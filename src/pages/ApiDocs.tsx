@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Code, 
-  Copy, 
-  CheckCircle, 
-  Send, 
-  Users, 
-  Megaphone, 
+import {
+  Code,
+  Copy,
+  CheckCircle,
+  Send,
+  Users,
+  Megaphone,
   Bot,
   FileText,
   Webhook,
@@ -17,10 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Collapsible, 
-  CollapsibleContent, 
-  CollapsibleTrigger 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
 } from '@/components/ui/collapsible';
 import FloxBeeLogo from '@/components/FloxBeeLogo';
 
@@ -54,6 +54,7 @@ const API_SECTIONS: ApiSection[] = [
           to: '5511999999999',
           message: 'Olá, {{nome}}! Esta é uma mensagem de teste.',
           type: 'text',
+          owner_id: 'uuid-do-dono',
         },
         responseExample: {
           messaging_product: 'whatsapp',
@@ -68,6 +69,7 @@ const API_SECTIONS: ApiSection[] = [
         requestBody: {
           recipients: ['5511999999999', '5511888888888'],
           message: 'Mensagem em massa',
+          owner_id: 'uuid-do-dono',
           delay_ms: 100,
         },
         responseExample: {
@@ -206,6 +208,7 @@ const API_SECTIONS: ApiSection[] = [
           context: {
             contact_name: 'João Silva',
             contact_id: 'uuid',
+            owner_id: 'uuid-do-dono',
           },
           stream: false,
         },
@@ -323,12 +326,11 @@ const EndpointCard: React.FC<{ endpoint: Endpoint; baseUrl: string }> = ({ endpo
             code={`curl -X ${endpoint.method} \\
   "${baseUrl}${endpoint.path}" \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer YOUR_ANON_KEY"${
-    endpoint.requestBody
-      ? ` \\
+  -H "Authorization: Bearer YOUR_ANON_KEY"${endpoint.requestBody
+                ? ` \\
   -d '${JSON.stringify(endpoint.requestBody)}'`
-      : ''
-  }`}
+                : ''
+              }`}
           />
         </div>
       </CollapsibleContent>
@@ -382,7 +384,7 @@ Authorization: Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.slice(0, 
 
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
               <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                <strong>Nota:</strong> Para operações que requerem autenticação de usuário, 
+                <strong>Nota:</strong> Para operações que requerem autenticação de usuário,
                 utilize o token JWT do usuário logado no header Authorization.
               </p>
             </div>
