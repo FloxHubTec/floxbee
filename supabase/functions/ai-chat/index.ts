@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,9 +51,35 @@ serve(async (req) => {
   }
 
   try {
+    // Validate that request has authorization header (user must be logged in)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Initialize Supabase client with service role for bypassing RLS
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify the user token is valid (but use service role for operations)
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      console.error("Auth validation error:", authError);
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { messages, context, stream = false }: ChatRequest = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    
+
     if (!OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY is not configured");
     }
@@ -72,7 +99,12 @@ serve(async (req) => {
       ...messages,
     ];
 
-    console.log("AI Chat Request (OpenAI):", { messagesCount: messages.length, hasContext: !!context, stream });
+    console.log("AI Chat Request (OpenAI):", {
+      userId: user.id,
+      messagesCount: messages.length,
+      hasContext: !!context,
+      stream
+    });
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -91,7 +123,7 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("OpenAI API error:", response.status, errorText);
-      
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
@@ -104,7 +136,7 @@ serve(async (req) => {
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      
+
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
@@ -116,7 +148,7 @@ serve(async (req) => {
 
     const data = await response.json();
     const assistantMessage = data.choices?.[0]?.message?.content || "";
-    
+
     // Check if transfer to human is needed
     const needsHumanTransfer = assistantMessage.includes("[TRANSFERIR_HUMANO]");
     const cleanMessage = assistantMessage.replace("[TRANSFERIR_HUMANO]", "").trim();

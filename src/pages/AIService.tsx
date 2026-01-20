@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Bot, 
-  MessageSquare, 
-  Zap, 
+import {
+  Bot,
+  MessageSquare,
+  Zap,
   Settings,
   TestTube,
   Activity,
@@ -22,7 +22,7 @@ import { toast } from "sonner";
 
 const AIService: React.FC = () => {
   const { config, loading: loadingConfig } = useTenant();
-  
+
   // Estado para métricas reais
   const [stats, setStats] = useState({
     totalAiMessages: 0,
@@ -42,21 +42,28 @@ const AIService: React.FC = () => {
     const fetchStats = async () => {
       try {
         // Contar mensagens enviadas pela IA
-        const { count, error } = await supabase
+        const { count, error: countError } = await supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
           .eq('sender_type', 'ia');
 
-        if (error) throw error;
+        if (countError) {
+          console.error("Erro ao contar mensagens:", countError);
+        }
 
         // Pegar última interação (opcional, apenas para mostrar atividade)
-        const { data: lastMsg } = await supabase
+        const { data: lastMsg, error: lastError } = await supabase
           .from('messages')
           .select('created_at')
           .eq('sender_type', 'ia')
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no rows
+
+        if (lastError && lastError.code !== 'PGRST116') {
+          // PGRST116 is "no rows returned", which is fine
+          console.error("Erro ao buscar última mensagem:", lastError);
+        }
 
         setStats({
           totalAiMessages: count || 0,
@@ -64,6 +71,11 @@ const AIService: React.FC = () => {
         });
       } catch (error) {
         console.error("Erro ao carregar estatísticas da IA:", error);
+        // Set default values on error
+        setStats({
+          totalAiMessages: 0,
+          lastActive: null
+        });
       } finally {
         setLoadingStats(false);
       }
@@ -80,7 +92,7 @@ const AIService: React.FC = () => {
   return (
     <ScrollArea className="h-full w-full bg-background">
       <div className="flex-1 p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
-        
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -115,7 +127,7 @@ const AIService: React.FC = () => {
           <TabsContent value="overview" className="space-y-6 animate-in fade-in-50">
             {/* Cards de Status */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              
+
               {/* Card 1: Modelo */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -199,7 +211,7 @@ const AIService: React.FC = () => {
                     </div>
                     <span className="font-medium">{config.ai.aiOrganization || "Não definido"}</span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
                     <div className="space-y-0.5">
                       <Label className="text-base">Base de Conhecimento</Label>
@@ -264,7 +276,7 @@ const AIService: React.FC = () => {
           {/* ABA: Playground */}
           <TabsContent value="playground" className="h-[600px] animate-in fade-in-50">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-              
+
               {/* Coluna da Esquerda: Configuração do Cenário */}
               <Card className="lg:col-span-1 border-primary/20 bg-muted/10 h-full">
                 <CardHeader>
@@ -276,30 +288,30 @@ const AIService: React.FC = () => {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="nome">Nome do Servidor</Label>
-                    <Input 
+                    <Input
                       id="nome"
                       name="servidor_nome"
-                      value={testContext.servidor_nome} 
+                      value={testContext.servidor_nome}
                       onChange={handleContextChange}
                       placeholder="Ex: João Silva"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="matricula">Matrícula</Label>
-                    <Input 
+                    <Input
                       id="matricula"
                       name="servidor_matricula"
-                      value={testContext.servidor_matricula} 
+                      value={testContext.servidor_matricula}
                       onChange={handleContextChange}
                       placeholder="Ex: 123456"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="secretaria">Secretaria / Setor</Label>
-                    <Input 
+                    <Input
                       id="secretaria"
                       name="servidor_secretaria"
-                      value={testContext.servidor_secretaria} 
+                      value={testContext.servidor_secretaria}
                       onChange={handleContextChange}
                       placeholder="Ex: Saúde"
                     />
@@ -338,7 +350,7 @@ const AIService: React.FC = () => {
                 <CardContent className="flex-1 p-0 overflow-hidden relative">
                   {/* Componente de Chat Real injetando o contexto */}
                   <div className="absolute inset-0">
-                    <AIChat 
+                    <AIChat
                       context={testContext}
                       key={JSON.stringify(testContext)} // Reinicia o chat se o contexto mudar
                     />
