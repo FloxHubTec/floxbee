@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import FloxBeeLogo from "@/components/FloxBeeLogo";
-import { Loader2, Mail, Lock, User, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, User, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -45,16 +45,19 @@ const Auth = () => {
   const [checkingSession, setCheckingSession] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
-  
+
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
   // Signup form
   const [signupNome, setSignupNome] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
 
   // Forgot password form
   const [resetEmail, setResetEmail] = useState("");
@@ -62,6 +65,8 @@ const Auth = () => {
   // New password form
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -70,7 +75,7 @@ const Auth = () => {
         setCheckingSession(false);
         return;
       }
-      
+
       if (session && !showResetPassword) {
         navigate("/");
       }
@@ -89,7 +94,7 @@ const Auth = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const validation = loginSchema.safeParse({ email: loginEmail, password: loginPassword });
     if (!validation.success) {
       toast({
@@ -101,7 +106,7 @@ const Auth = () => {
     }
 
     setLoading(true);
-    
+
     const { error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: loginPassword,
@@ -110,8 +115,8 @@ const Auth = () => {
     if (error) {
       toast({
         title: "Erro no login",
-        description: error.message === "Invalid login credentials" 
-          ? "Email ou senha incorretos" 
+        description: error.message === "Invalid login credentials"
+          ? "Email ou senha incorretos"
           : error.message,
         variant: "destructive",
       });
@@ -121,20 +126,20 @@ const Auth = () => {
         description: "Login realizado com sucesso",
       });
     }
-    
+
     setLoading(false);
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const validation = signupSchema.safeParse({
       nome: signupNome,
       email: signupEmail,
       password: signupPassword,
       confirmPassword: signupConfirmPassword,
     });
-    
+
     if (!validation.success) {
       toast({
         title: "Erro de validação",
@@ -145,7 +150,7 @@ const Auth = () => {
     }
 
     setLoading(true);
-    
+
     const { error } = await supabase.auth.signUp({
       email: signupEmail,
       password: signupPassword,
@@ -177,13 +182,13 @@ const Auth = () => {
         description: "Você será redirecionado em instantes...",
       });
     }
-    
+
     setLoading(false);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const validation = resetPasswordSchema.safeParse({ email: resetEmail });
     if (!validation.success) {
       toast({
@@ -195,7 +200,7 @@ const Auth = () => {
     }
 
     setLoading(true);
-    
+
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
       redirectTo: `${window.location.origin}/auth`,
     });
@@ -214,18 +219,18 @@ const Auth = () => {
       setShowForgotPassword(false);
       setResetEmail("");
     }
-    
+
     setLoading(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const validation = newPasswordSchema.safeParse({ 
-      password: newPassword, 
-      confirmPassword: confirmNewPassword 
+
+    const validation = newPasswordSchema.safeParse({
+      password: newPassword,
+      confirmPassword: confirmNewPassword
     });
-    
+
     if (!validation.success) {
       toast({
         title: "Erro de validação",
@@ -236,7 +241,7 @@ const Auth = () => {
     }
 
     setLoading(true);
-    
+
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });
@@ -257,7 +262,7 @@ const Auth = () => {
       setConfirmNewPassword("");
       navigate("/");
     }
-    
+
     setLoading(false);
   };
 
@@ -280,21 +285,21 @@ const Auth = () => {
         <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-2xl text-whatsapp-dark">
-              {showResetPassword 
-                ? "Redefinir Senha" 
-                : showForgotPassword 
-                  ? "Recuperar Senha" 
+              {showResetPassword
+                ? "Redefinir Senha"
+                : showForgotPassword
+                  ? "Recuperar Senha"
                   : "Acesse o Sistema"}
             </CardTitle>
             <CardDescription>
-              {showResetPassword 
-                ? "Digite sua nova senha abaixo" 
-                : showForgotPassword 
-                  ? "Enviaremos um link para seu email" 
+              {showResetPassword
+                ? "Digite sua nova senha abaixo"
+                : showForgotPassword
+                  ? "Enviaremos um link para seu email"
                   : "CRM e Gestor de Atendimento Omnicanal"}
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent>
             {/* Reset Password Form (after clicking email link) */}
             {showResetPassword ? (
@@ -305,34 +310,48 @@ const Auth = () => {
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="new-password"
-                      type="password"
+                      type={showNewPassword ? "text" : "password"}
                       placeholder="Mínimo 6 caracteres"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="confirm-new-password">Confirmar Nova Senha</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="confirm-new-password"
-                      type="password"
+                      type={showConfirmNewPassword ? "text" : "password"}
                       placeholder="Repita a nova senha"
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showConfirmNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
-                
-                <Button 
-                  type="submit" 
+
+                <Button
+                  type="submit"
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   disabled={loading}
                 >
@@ -364,9 +383,9 @@ const Auth = () => {
                     />
                   </div>
                 </div>
-                
-                <Button 
-                  type="submit" 
+
+                <Button
+                  type="submit"
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   disabled={loading}
                 >
@@ -379,7 +398,7 @@ const Auth = () => {
                     "Enviar Link de Recuperação"
                   )}
                 </Button>
-                
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -397,7 +416,7 @@ const Auth = () => {
                   <TabsTrigger value="login">Entrar</TabsTrigger>
                   <TabsTrigger value="signup">Cadastrar</TabsTrigger>
                 </TabsList>
-                
+
                 {/* Login Tab */}
                 <TabsContent value="login">
                   <form onSubmit={handleLogin} className="space-y-4">
@@ -416,7 +435,7 @@ const Auth = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="login-password">Senha</Label>
@@ -432,18 +451,25 @@ const Auth = () => {
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           id="login-password"
-                          type="password"
+                          type={showLoginPassword ? "text" : "password"}
                           placeholder="••••••••"
                           value={loginPassword}
                           onChange={(e) => setLoginPassword(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 pr-10"
                           required
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword(!showLoginPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
-                    
-                    <Button 
-                      type="submit" 
+
+                    <Button
+                      type="submit"
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                       disabled={loading}
                     >
@@ -458,7 +484,7 @@ const Auth = () => {
                     </Button>
                   </form>
                 </TabsContent>
-                
+
                 {/* Signup Tab */}
                 <TabsContent value="signup">
                   <form onSubmit={handleSignup} className="space-y-4">
@@ -477,7 +503,7 @@ const Auth = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="signup-email">Email</Label>
                       <div className="relative">
@@ -493,41 +519,55 @@ const Auth = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="signup-password">Senha</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           id="signup-password"
-                          type="password"
+                          type={showSignupPassword ? "text" : "password"}
                           placeholder="Mínimo 6 caracteres"
                           value={signupPassword}
                           onChange={(e) => setSignupPassword(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 pr-10"
                           required
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowSignupPassword(!showSignupPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="signup-confirm">Confirmar senha</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           id="signup-confirm"
-                          type="password"
+                          type={showSignupConfirmPassword ? "text" : "password"}
                           placeholder="Repita a senha"
                           value={signupConfirmPassword}
                           onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 pr-10"
                           required
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowSignupConfirmPassword(!showSignupConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showSignupConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
-                    
-                    <Button 
-                      type="submit" 
+
+                    <Button
+                      type="submit"
                       className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
                       disabled={loading}
                     >
