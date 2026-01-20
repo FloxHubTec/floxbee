@@ -33,6 +33,39 @@ serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Robust Authentication Extraction
+    const authParts = authHeader.split(' ');
+    const token = authParts.length > 1 ? authParts[1].trim() : authParts[0].trim();
+
+    // Bypass check for Service Role (Internal/External backend calls)
+    const isServiceCall = token === supabaseServiceKey;
+
+    if (!isServiceCall) {
+      // Create a temporary client just for auth check
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+      if (authError || !user) {
+        console.error("Auth validation error:", authError);
+        return new Response(
+          JSON.stringify({ error: `Auth validation failed: ${authError?.message || 'Invalid token'}` }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
     const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
 
@@ -42,7 +75,7 @@ serve(async (req) => {
         JSON.stringify({
           error: "WhatsApp not configured",
           details: "WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID are required",
-          mock: true // Indicate this is a mock response
+          mock: true
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
