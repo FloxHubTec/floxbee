@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { useLandingPages } from '@/hooks/useLandingPages';
 import {
     generateQRCodeDataURL,
     generateQRCodeSVG,
@@ -49,6 +50,9 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
     const [vcardPhone, setVcardPhone] = useState(initialDados.phone || '');
     const [vcardEmail, setVcardEmail] = useState(initialDados.email || '');
     const [vcardOrg, setVcardOrg] = useState(initialDados.organization || '');
+    const [selectedLpSlug, setSelectedLpSlug] = useState(initialDados.landing_page_slug || '');
+
+    const { data: landingPages = [] } = useLandingPages();
 
     // Generate QR code content based on type
     const generateContent = () => {
@@ -74,9 +78,11 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
                 dados = { name: vcardName, phone: vcardPhone, email: vcardEmail, organization: vcardOrg };
                 break;
             case 'landing_page':
-                // This will be set from parent component
-                content = url;
-                dados = { landing_page_slug: url };
+                // Use selected landing page slug to build URL
+                const baseUrl = window.location.origin;
+                const lpUrl = `${baseUrl}/lp/${selectedLpSlug}`;
+                content = lpUrl;
+                dados = { landing_page_slug: selectedLpSlug };
                 break;
             default:
                 content = url;
@@ -250,14 +256,21 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorProps> = ({
 
                 {tipo === 'landing_page' && (
                     <div className="space-y-2">
-                        <Label>URL da Landing Page</Label>
-                        <Input
-                            placeholder="https://seusite.com/lp/seu-slug"
-                            value={url}
-                            onChange={(e) => setUrl(e.target.value)}
-                        />
+                        <Label>Selecionar Landing Page</Label>
+                        <Select value={selectedLpSlug} onValueChange={setSelectedLpSlug}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione uma landing page" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {landingPages.map((lp) => (
+                                    <SelectItem key={lp.id} value={lp.slug}>
+                                        {lp.titulo} (/lp/{lp.slug})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         <p className="text-xs text-muted-foreground">
-                            Cole o link completo da sua landing page
+                            O QR Code levará o lead diretamente para a página selecionada
                         </p>
                     </div>
                 )}

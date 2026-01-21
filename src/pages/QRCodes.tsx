@@ -41,8 +41,8 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { useQRCodes, useDeleteQRCode, useCreateQRCode, QRCode as QRCodeType } from '@/hooks/useQRCodes';
-import { downloadQRCodePNG, downloadQRCodeSVG, generateQRCodeSVG } from '@/lib/qrCodeGenerator';
+import { useQRCodes, useDeleteQRCode, useCreateQRCode, useUpdateQRCode, QRCode as QRCodeType } from '@/hooks/useQRCodes';
+import { downloadQRCodePNG, downloadQRCodeSVG, generateQRCodeSVG, generateQRCodeDataURL } from '@/lib/qrCodeGenerator';
 import QRCodeGenerator from '@/components/qr-codes/QRCodeGenerator';
 import QRCodeAnalytics from '@/components/qr-codes/QRCodeAnalytics';
 import FloxBeeLogo from '@/components/FloxBeeLogo';
@@ -54,6 +54,7 @@ const QRCodes: React.FC = () => {
     const { data: qrCodes = [], isLoading } = useQRCodes();
     const deleteQRCode = useDeleteQRCode();
     const createQRCode = useCreateQRCode();
+    const updateQRCode = useUpdateQRCode();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -91,19 +92,30 @@ const QRCodes: React.FC = () => {
         }
 
         try {
-            await createQRCode.mutateAsync({
+            // 1. Create the record first (may have temporary image)
+            const newQR = await createQRCode.mutateAsync({
                 titulo: newQRTitle,
                 descricao: newQRDescription || null,
                 tipo: generatedTipo,
                 dados: generatedDados,
                 qr_code_url: generatedDataUrl,
                 ativo: true,
-                owner_id: null, // Will be set by hook
+                owner_id: null,
+            });
+
+            // 2. Generate the real tracking QR code image
+            const trackingUrl = window.location.origin + `/qr/${newQR.id}`;
+            const realDataUrl = await generateQRCodeDataURL(trackingUrl, { size: 500 });
+
+            // 3. Update the record with the tracking image
+            await updateQRCode.mutateAsync({
+                id: newQR.id,
+                qr_code_url: realDataUrl
             });
 
             toast({
                 title: 'QR Code salvo!',
-                description: 'Seu QR Code foi criado com sucesso.',
+                description: 'Seu QR Code foi criado com sucesso com link de rastreamento.',
             });
 
             // Reset form

@@ -23,6 +23,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PublicRegister from "./pages/PublicRegister";
 import PublicLandingPage from "./pages/PublicLandingPage";
+import PublicQRCodeRedirect from "./pages/PublicQRCodeRedirect";
 import ApiDocs from "./pages/ApiDocs";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/cadastro" element={<PublicRegister />} />
               <Route path="/lp/:slug" element={<PublicLandingPage />} />
+              <Route path="/qr/:id" element={<PublicQRCodeRedirect />} />
               <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
               <Route path="/termos-de-uso" element={<TermsOfService />} />
 
