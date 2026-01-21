@@ -205,6 +205,13 @@ export const useSubmitLandingPageForm = () => {
             dados: any;
             origem?: string;
         }) => {
+            // Get landing page details for owner_id and current stats
+            const { data: landingPage } = await supabase
+                .from('landing_pages')
+                .select('owner_id')
+                .eq('id', landingPageId)
+                .single();
+
             // Try to find or create contact
             let contactId = null;
 
@@ -231,6 +238,7 @@ export const useSubmitLandingPageForm = () => {
                             whatsapp: dados.whatsapp || null,
                             email: dados.email || null,
                             ativo: true,
+                            owner_id: landingPage?.owner_id, // Important for multi-tenancy
                         })
                         .select('id')
                         .single();
@@ -257,19 +265,8 @@ export const useSubmitLandingPageForm = () => {
 
             if (error) throw error;
 
-            // Increment conversions count
-            const { data: landingPage } = await supabase
-                .from('landing_pages')
-                .select('conversoes')
-                .eq('id', landingPageId)
-                .single();
-
-            if (landingPage) {
-                await supabase
-                    .from('landing_pages')
-                    .update({ conversoes: (landingPage.conversoes || 0) + 1 })
-                    .eq('id', landingPageId);
-            }
+            // Increment conversions count safely via RPC
+            await supabase.rpc('increment_landing_page_conversion', { lp_id: landingPageId });
 
             return data;
         },
@@ -286,18 +283,8 @@ export const useTrackLandingPageVisit = () => {
 
     return useMutation({
         mutationFn: async (landingPageId: string) => {
-            const { data: landingPage } = await supabase
-                .from('landing_pages')
-                .select('visitantes')
-                .eq('id', landingPageId)
-                .single();
-
-            if (landingPage) {
-                await supabase
-                    .from('landing_pages')
-                    .update({ visitantes: (landingPage.visitantes || 0) + 1 })
-                    .eq('id', landingPageId);
-            }
+            // Increment visitors count safely via RPC
+            await supabase.rpc('increment_landing_page_visit', { lp_id: landingPageId });
         },
         onSuccess: (_, landingPageId) => {
             queryClient.invalidateQueries({ queryKey: ['landing-page', landingPageId] });
