@@ -27,8 +27,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Loader2, Clock } from "lucide-react";
-import type { TicketWithRelations } from "@/hooks/useTickets";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Loader2, Clock, History as HistoryIcon, ArrowRight } from "lucide-react";
+import { useTicketHistory, type TicketWithRelations } from "@/hooks/useTickets";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 
 const ticketSchema = z.object({
   titulo: z.string().min(3, "Título deve ter pelo menos 3 caracteres"),
@@ -69,6 +74,28 @@ export const TicketForm: React.FC<TicketFormProps> = ({
   agentes = [],
 }) => {
   const isEditing = !!ticket;
+  const { data: history, isLoading: isLoadingHistory } = useTicketHistory(ticket?.id || null);
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      aberto: "Aberto",
+      em_atendimento: "Em Atendimento",
+      pendente: "Pendente",
+      resolvido: "Resolvido",
+      cancelado: "Cancelado"
+    };
+    return labels[status] || status;
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    const labels: Record<string, string> = {
+      baixa: "Baixa",
+      media: "Média",
+      alta: "Alta",
+      urgente: "Urgente"
+    };
+    return labels[priority] || priority;
+  };
 
   const form = useForm<TicketFormValues>({
     resolver: zodResolver(ticketSchema),
@@ -255,6 +282,75 @@ export const TicketForm: React.FC<TicketFormProps> = ({
             </div>
           </form>
         </Form>
+
+        {isEditing && (
+          <>
+            <Separator className="my-4" />
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <HistoryIcon className="w-4 h-4" />
+                Histórico de Interações
+              </div>
+
+              <ScrollArea className="h-[200px] rounded-md border p-4">
+                {isLoadingHistory ? (
+                  <div className="flex justify-center p-4">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : history?.length === 0 ? (
+                  <div className="text-center text-sm text-muted-foreground p-4">
+                    Nenhuma interação registrada ainda.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {history?.map((item) => (
+                      <div key={item.id} className="text-xs space-y-1">
+                        <div className="flex justify-between text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {item.created_by_profile?.nome || "Sistema"}
+                          </span>
+                          <span>
+                            {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </span>
+                        </div>
+
+                        <div className="bg-muted/50 p-2 rounded-sm space-y-1">
+                          {item.new_status && item.new_status !== item.old_status && (
+                            <div className="flex items-center gap-1">
+                              Status: <Badge variant="outline">{getStatusLabel(item.old_status || "")}</Badge>
+                              <ArrowRight className="w-3 h-3" />
+                              <Badge>{getStatusLabel(item.new_status)}</Badge>
+                            </div>
+                          )}
+
+                          {item.new_priority && item.new_priority !== item.old_priority && (
+                            <div className="flex items-center gap-1">
+                              Prioridade: <Badge variant="outline" className="capitalize">{getPriorityLabel(item.old_priority || "")}</Badge>
+                              <ArrowRight className="w-3 h-3" />
+                              <Badge className="capitalize">{getPriorityLabel(item.new_priority)}</Badge>
+                            </div>
+                          )}
+
+                          {item.new_assigned_to !== item.old_assigned_to && (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <span>Atribuição alterada</span>
+                            </div>
+                          )}
+
+                          {item.note && (
+                            <p className="text-foreground italic mt-1 font-medium">
+                              "{item.note}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog >
   );

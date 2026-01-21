@@ -14,6 +14,8 @@ import {
     Copy,
     Check,
     ExternalLink,
+    Settings,
+    X,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,6 +60,16 @@ import FloxBeeLogo from '@/components/FloxBeeLogo';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { exportLandingPageSubmissionsToExcel } from '@/lib/exportExcel';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 const LandingPages: React.FC = () => {
     const { toast } = useToast();
@@ -82,6 +94,10 @@ const LandingPages: React.FC = () => {
         { name: 'whatsapp', label: 'WhatsApp', type: 'tel', required: true },
         { name: 'email', label: 'Email', type: 'email', required: false },
     ]);
+    const [newField, setNewField] = useState({ label: '', type: 'text', required: false });
+
+    // Submissions fetching (hook is called inside the component now for the list)
+    const { data: submissions = [], isLoading: isLoadingSubmissions } = useLandingPageSubmissions(selectedLandingPage?.id || null);
 
     const filteredLandingPages = landingPages.filter((lp) =>
         lp.titulo.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -199,26 +215,29 @@ const LandingPages: React.FC = () => {
         }
     };
 
-    const handleExportSubmissions = async (lp: LandingPageType) => {
-        try {
-            const { data: submissions } = await useLandingPageSubmissions(lp.id);
-            if (submissions && submissions.length > 0) {
-                exportLandingPageSubmissionsToExcel(submissions, lp.titulo);
-                toast({
-                    title: 'Submissões exportadas',
-                    description: `${submissions.length} submissões exportadas para Excel.`,
-                });
-            } else {
-                toast({
-                    title: 'Nenhuma submissão',
-                    description: 'Esta landing page ainda não tem submissões.',
-                });
-            }
-        } catch (error) {
+    const handleAddField = () => {
+        if (!newField.label) return;
+        const name = generateSlug(newField.label).replace(/-/g, '_');
+        setFormFields([...formFields, { ...newField, name }]);
+        setNewField({ label: '', type: 'text', required: false });
+    };
+
+    const handleRemoveField = (index: number) => {
+        // Don't remove default fields if preferred, but here we allow it for full customization
+        setFormFields(formFields.filter((_, i) => i !== index));
+    };
+
+    const handleExportSubmissions = (lp: LandingPageType) => {
+        if (submissions && submissions.length > 0) {
+            exportLandingPageSubmissionsToExcel(submissions, lp.titulo);
             toast({
-                title: 'Erro ao exportar',
-                description: 'Não foi possível exportar as submissões.',
-                variant: 'destructive',
+                title: 'Submissões exportadas',
+                description: `${submissions.length} submissões exportadas para Excel.`,
+            });
+        } else {
+            toast({
+                title: 'Nenhuma submissão',
+                description: 'Esta landing page ainda não tem submissões.',
             });
         }
     };
@@ -374,57 +393,113 @@ const LandingPages: React.FC = () => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Título *</Label>
-                            <Input
-                                placeholder="Ex: Cadastro de Servidores"
-                                value={titulo}
-                                onChange={(e) => handleTituloChange(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Slug * (URL única)</Label>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">/lp/</span>
+                    <ScrollArea className="max-h-[70vh] px-1">
+                        <div className="space-y-4 pr-3">
+                            <div className="space-y-2">
+                                <Label>Título *</Label>
                                 <Input
-                                    placeholder="cadastro-servidores"
-                                    value={slug}
-                                    onChange={(e) => setSlug(generateSlug(e.target.value))}
+                                    placeholder="Ex: Cadastro de Servidores"
+                                    value={titulo}
+                                    onChange={(e) => handleTituloChange(e.target.value)}
                                 />
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                URL será: {window.location.origin}/lp/{slug || 'seu-slug'}
-                            </p>
-                        </div>
 
-                        <div className="space-y-2">
-                            <Label>Descrição</Label>
-                            <Textarea
-                                placeholder="Breve descrição da landing page"
-                                value={descricao}
-                                onChange={(e) => setDescricao(e.target.value)}
-                                rows={3}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Campos do Formulário</Label>
-                            <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-                                {formFields.map((field, index) => (
-                                    <div key={index} className="flex items-center gap-2 text-sm">
-                                        <Badge variant="outline">{field.label}</Badge>
-                                        <span className="text-muted-foreground">({field.type})</span>
-                                        {field.required && <Badge variant="secondary" className="text-xs">Obrigatório</Badge>}
-                                    </div>
-                                ))}
+                            <div className="space-y-2">
+                                <Label>Slug * (URL única)</Label>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-muted-foreground">/lp/</span>
+                                    <Input
+                                        placeholder="cadastro-servidores"
+                                        value={slug}
+                                        onChange={(e) => setSlug(generateSlug(e.target.value))}
+                                    />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    URL será: {window.location.origin}/lp/{slug || 'seu-slug'}
+                                </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                Campos padrão: Nome, WhatsApp e Email
-                            </p>
+
+                            <div className="space-y-2">
+                                <Label>Descrição</Label>
+                                <Textarea
+                                    placeholder="Breve descrição da landing page"
+                                    value={descricao}
+                                    onChange={(e) => setDescricao(e.target.value)}
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <Label>Campos do Formulário (Otimização de Captação)</Label>
+                                    <Badge variant="outline" className="text-[10px]">{formFields.length} Campos</Badge>
+                                </div>
+
+                                <div className="space-y-2 border rounded-md p-3 bg-muted/20">
+                                    {formFields.map((field, index) => (
+                                        <div key={index} className="flex items-center justify-between p-2 bg-background border rounded-md shadow-sm">
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline">{field.label}</Badge>
+                                                <span className="text-[10px] text-muted-foreground uppercase">{field.type}</span>
+                                                {field.required && <span className="text-[10px] text-destructive">*</span>}
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-destructive"
+                                                onClick={() => handleRemoveField(index)}
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex items-end gap-2 p-3 border rounded-md bg-accent/5">
+                                    <div className="space-y-1 flex-1">
+                                        <Label className="text-xs">Novo Campo</Label>
+                                        <Input
+                                            placeholder="Ex: CPF, Cargo..."
+                                            value={newField.label}
+                                            onChange={(e) => setNewField({ ...newField, label: e.target.value })}
+                                            className="h-8"
+                                        />
+                                    </div>
+                                    <div className="space-y-1 w-28">
+                                        <Label className="text-xs">Tipo</Label>
+                                        <Select
+                                            value={newField.type}
+                                            onValueChange={(v) => setNewField({ ...newField, type: v })}
+                                        >
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="text">Texto</SelectItem>
+                                                <SelectItem value="tel">WhatsApp</SelectItem>
+                                                <SelectItem value="email">Email</SelectItem>
+                                                <SelectItem value="date">Data</SelectItem>
+                                                <SelectItem value="number">Número</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        onClick={handleAddField}
+                                        className="h-8"
+                                        disabled={!newField.label}
+                                    >
+                                        Add
+                                    </Button>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground">
+
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                    </ScrollArea>
+
+                    <Separator className="my-2" />
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
@@ -448,18 +523,74 @@ const LandingPages: React.FC = () => {
                     </DialogHeader>
 
                     <div className="space-y-4">
-                        <Button
-                            variant="outline"
-                            className="gap-2"
-                            onClick={() => selectedLandingPage && handleExportSubmissions(selectedLandingPage)}
-                        >
-                            <Download className="w-4 h-4" />
-                            Exportar para Excel
-                        </Button>
+                        <div className="flex items-center justify-between">
+                            <Button
+                                variant="outline"
+                                className="gap-2"
+                                onClick={() => selectedLandingPage && handleExportSubmissions(selectedLandingPage)}
+                                disabled={submissions.length === 0}
+                            >
+                                <Download className="w-4 h-4" />
+                                Exportar Excel
+                            </Button>
+                            <Badge variant="secondary">{submissions.length} Total</Badge>
+                        </div>
 
-                        <p className="text-sm text-muted-foreground">
-                            Lista de submissões será exibida aqui (implementação completa requer componente adicional)
-                        </p>
+                        {isLoadingSubmissions ? (
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                            </div>
+                        ) : submissions.length === 0 ? (
+                            <div className="text-center py-12 border-2 border-dashed rounded-lg text-muted-foreground">
+                                <p>Nenhuma submissão encontrada para esta página.</p>
+                            </div>
+                        ) : (
+                            <div className="relative overflow-x-auto border rounded-md">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Data</TableHead>
+                                            <TableHead>Contato/Nome</TableHead>
+                                            <TableHead>Dados Capturados</TableHead>
+                                            <TableHead>Origem</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {submissions.map((sub) => (
+                                            <TableRow key={sub.id}>
+                                                <TableCell className="text-xs whitespace-nowrap">
+                                                    {format(new Date(sub.created_at), 'dd/MM/yy HH:mm')}
+                                                </TableCell>
+                                                <TableCell className="font-medium">
+                                                    {sub.contact ? (
+                                                        <div className="flex flex-col">
+                                                            <span>{sub.contact.nome}</span>
+                                                            <span className="text-[10px] text-muted-foreground">{sub.contact.whatsapp}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground italic">Desconhecido</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-wrap gap-1 max-w-[300px]">
+                                                        {Object.entries(sub.dados || {}).map(([key, val]) => (
+                                                            <Badge key={key} variant="outline" className="text-[9px] px-1 h-5">
+                                                                {key}: {String(val)}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="secondary" className="text-[10px] uppercase">
+                                                        {sub.origem || 'Direto'}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

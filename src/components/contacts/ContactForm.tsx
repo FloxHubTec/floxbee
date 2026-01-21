@@ -5,6 +5,8 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +34,7 @@ const contactSchema = z.object({
   matricula: z.string().optional(),
   cargo: z.string().optional(),
   data_nascimento: z.string().optional(),
+  tags: z.array(z.string()).default([]),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
@@ -58,6 +61,8 @@ export const ContactForm: React.FC<ContactFormProps> = ({
     handleSubmit,
     reset,
     control,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -69,8 +74,12 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       matricula: contact?.matricula || "",
       cargo: contact?.cargo || "",
       data_nascimento: (contact as any)?.data_nascimento || "",
+      tags: contact?.tags || [],
     },
   });
+
+  const [tagInput, setTagInput] = React.useState("");
+  const tags = watch("tags") || [];
 
   React.useEffect(() => {
     if (contact) {
@@ -82,6 +91,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
         matricula: contact.matricula || "",
         cargo: contact.cargo || "",
         data_nascimento: (contact as any).data_nascimento || "",
+        tags: contact.tags || [],
       });
     } else {
       reset({
@@ -92,9 +102,25 @@ export const ContactForm: React.FC<ContactFormProps> = ({
         matricula: "",
         cargo: "",
         data_nascimento: "",
+        tags: [],
       });
     }
   }, [contact, reset]);
+
+  const handleAddTag = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const newTag = tagInput.trim().toLowerCase().replace(",", "");
+      if (newTag && !tags.includes(newTag)) {
+        setValue("tags", [...tags, newTag]);
+      }
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setValue("tags", tags.filter(t => t !== tagToRemove));
+  };
 
   const handleFormSubmit = (data: ContactFormData) => {
     // Format phone number
@@ -113,6 +139,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
       matricula: data.matricula || null,
       cargo: data.cargo || null,
       data_nascimento: data.data_nascimento || null,
+      tags: data.tags,
     } as any);
   };
 
@@ -223,6 +250,33 @@ export const ContactForm: React.FC<ContactFormProps> = ({
             />
             <p className="text-xs text-muted-foreground">
               Para envio automático de mensagens de aniversário
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Tags de Segmentação</Label>
+            <div className="flex flex-wrap gap-2 mb-2 min-h-[40px] p-2 border rounded-md bg-muted/20">
+              {tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="gap-1 px-2 py-1">
+                  {tag}
+                  <X 
+                    className="w-3 h-3 cursor-pointer hover:text-destructive" 
+                    onClick={() => handleRemoveTag(tag)}
+                  />
+                </Badge>
+              ))}
+              {tags.length === 0 && (
+                <span className="text-xs text-muted-foreground self-center">Nenhuma tag adicionada</span>
+              )}
+            </div>
+            <Input
+              placeholder="Digite uma tag e pressione Enter"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleAddTag}
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Use tags para agrupar contatos (ex: saúde, educação, ativos). Pressione Enter ou vírgula para adicionar.
             </p>
           </div>
 

@@ -146,6 +146,39 @@ export const useCreateTicket = () => {
   });
 };
 
+// Helper function to log ticket history
+const logTicketHistory = async (params: {
+  ticketId: string;
+  oldStatus?: string;
+  newStatus?: string;
+  oldPriority?: string;
+  newPriority?: string;
+  oldAssignedTo?: string;
+  newAssignedTo?: string;
+  note?: string;
+}) => {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Get profile ID
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', user?.id)
+    .single();
+
+  await supabase.from("ticket_history").insert({
+    ticket_id: params.ticketId,
+    created_by: profile?.id,
+    old_status: params.oldStatus,
+    new_status: params.newStatus,
+    old_priority: params.oldPriority,
+    new_priority: params.newPriority,
+    old_assigned_to: params.oldAssignedTo,
+    new_assigned_to: params.newAssignedTo,
+    note: params.note,
+  });
+};
+
 export const useUpdateTicket = () => {
   const queryClient = useQueryClient();
 
@@ -175,12 +208,30 @@ export const useUpdateTicket = () => {
         updateData.status = "em_analise";
       }
 
+      const { data: oldTicket } = await supabase
+        .from("tickets")
+        .select("status, prioridade, assigned_to")
+        .eq("id", ticketId)
+        .single();
+
       const { error } = await supabase
         .from("tickets")
         .update(updateData)
         .eq("id", ticketId);
 
       if (error) throw error;
+
+      // Log history
+      await logTicketHistory({
+        ticketId,
+        oldStatus: oldTicket?.status,
+        newStatus: updateData.status as string || oldTicket?.status,
+        oldPriority: oldTicket?.prioridade,
+        newPriority: (data.prioridade as string) || oldTicket?.prioridade,
+        oldAssignedTo: oldTicket?.assigned_to,
+        newAssignedTo: (data.assigned_to as string) || oldTicket?.assigned_to,
+        note: "Dados do ticket atualizados",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
@@ -216,12 +267,28 @@ export const useUpdateTicketStatus = () => {
         updateData.resolved_at = new Date().toISOString();
       }
 
+      const { data: oldTicket } = await supabase
+        .from("tickets")
+        .select("status, assigned_to")
+        .eq("id", ticketId)
+        .single();
+
       const { error } = await supabase
         .from("tickets")
         .update(updateData)
         .eq("id", ticketId);
 
       if (error) throw error;
+
+      // Log history
+      await logTicketHistory({
+        ticketId,
+        oldStatus: oldTicket?.status,
+        newStatus: status,
+        oldAssignedTo: oldTicket?.assigned_to,
+        newAssignedTo: assignedTo || oldTicket?.assigned_to,
+        note: `Status alterado de ${oldTicket?.status} para ${status}`,
+      });
 
       // Send notification for status change
       if (oldStatus && oldStatus !== status && contactId) {
@@ -319,5 +386,26 @@ export const useContacts = () => {
       if (error) throw error;
       return data;
     },
+  });
+};
+
+export const useTicketHistory = (ticketId: string | null) => {
+  return useQuery({
+    queryKey: ["ticket-history", ticketId],
+    queryFn: async () => {
+      if (!ticketId) return [];
+      const { data, error } = await supabase
+        .from("ticket_history")
+        .select(`
+          *,
+          created_by_profile:profiles!ticket_history_created_by_fkey(nome)
+        `)
+        .eq("ticket_id", ticketId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!ticketId,
   });
 };
