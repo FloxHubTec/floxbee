@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+w2qimport React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { 
-  UserPlus, 
-  Phone, 
-  Mail, 
-  Building2, 
-  Briefcase, 
+import {
+  UserPlus,
+  Phone,
+  Mail,
+  Building2,
+  Briefcase,
   CheckCircle,
   Loader2,
   ArrowLeft
@@ -154,8 +154,8 @@ const PublicRegister: React.FC = () => {
             <p className="text-muted-foreground mb-6">
               Seus dados foram registrados com sucesso. Em breve você receberá uma mensagem de confirmação no seu WhatsApp.
             </p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setIsSuccess(false);
                 form.reset();
@@ -213,8 +213,8 @@ const PublicRegister: React.FC = () => {
                       WhatsApp *
                     </FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="(00) 00000-0000" 
+                      <Input
+                        placeholder="(00) 00000-0000"
                         {...field}
                         onChange={(e) => {
                           const formatted = formatPhoneNumber(e.target.value);
