@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { toast } from 'sonner';
 
 export type Campaign = Tables<'campaigns'>;
 export type CampaignInsert = TablesInsert<'campaigns'>;
 export type CampaignUpdate = TablesUpdate<'campaigns'>;
 export type CampaignRecipient = Tables<'campaign_recipients'>;
 
-// Fetch all campaigns
+// --- 1. LISTAR CAMPANHAS ---
 export const useCampaigns = () => {
   return useQuery({
     queryKey: ['campaigns'],
@@ -23,7 +24,7 @@ export const useCampaigns = () => {
   });
 };
 
-// Fetch single campaign with recipients
+// --- 2. OBTER UMA CAMPANHA (COM DESTINATÁRIOS) ---
 export const useCampaign = (campaignId: string | null) => {
   return useQuery({
     queryKey: ['campaign', campaignId],
@@ -36,7 +37,7 @@ export const useCampaign = (campaignId: string | null) => {
           *,
           campaign_recipients(
             *,
-            contacts:contact_id(id, nome, whatsapp)
+            contacts:contact_id(id, nome, whatsapp, email)
           )
         `)
         .eq('id', campaignId)
@@ -49,16 +50,16 @@ export const useCampaign = (campaignId: string | null) => {
   });
 };
 
-// Create new campaign
+// --- 3. CRIAR CAMPANHA ---
 export const useCreateCampaign = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (campaign: Omit<CampaignInsert, 'id' | 'created_at' | 'updated_at' | 'created_by'>) => {
-      // Get current user
+      // Pega usuário atual
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Get profile ID from auth user ID
+      // Pega profile ID (necessário para created_by)
       const { data: profile } = await supabase
         .from('profiles')
         .select('id')
@@ -70,6 +71,7 @@ export const useCreateCampaign = () => {
         .insert({
           ...campaign,
           created_by: profile?.id,
+          // owner_id será preenchido pelo Trigger do banco
         })
         .select()
         .single();
@@ -79,11 +81,15 @@ export const useCreateCampaign = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success('Rascunho de campanha criado!');
     },
+    onError: (error: any) => {
+      toast.error('Erro ao criar campanha: ' + error.message);
+    }
   });
 };
 
-// Update campaign
+// --- 4. ATUALIZAR CAMPANHA ---
 export const useUpdateCampaign = () => {
   const queryClient = useQueryClient();
 
@@ -101,17 +107,21 @@ export const useUpdateCampaign = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success('Campanha atualizada!');
     },
+    onError: (error: any) => {
+      toast.error('Erro ao atualizar: ' + error.message);
+    }
   });
 };
 
-// Delete campaign
+// --- 5. EXCLUIR CAMPANHA ---
 export const useDeleteCampaign = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // First delete recipients
+      // Remove destinatários primeiro (embora o banco deva ter CASCADE)
       await supabase
         .from('campaign_recipients')
         .delete()
@@ -126,11 +136,15 @@ export const useDeleteCampaign = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success('Campanha excluída.');
     },
+    onError: (error: any) => {
+      toast.error('Erro ao excluir: ' + error.message);
+    }
   });
 };
 
-// Add recipients to campaign
+// --- 6. ADICIONAR DESTINATÁRIOS (POPULAR LISTA) ---
 export const useAddCampaignRecipients = () => {
   const queryClient = useQueryClient();
 
@@ -142,20 +156,23 @@ export const useAddCampaignRecipients = () => {
       campaignId: string;
       contactIds: string[];
     }) => {
+      if (contactIds.length === 0) return;
+
       const recipients = contactIds.map(contactId => ({
         campaign_id: campaignId,
         contact_id: contactId,
         status: 'pendente',
       }));
 
+      // Insert (Upsert para evitar duplicados se rodar 2x)
       const { data, error } = await supabase
         .from('campaign_recipients')
-        .insert(recipients)
+        .upsert(recipients, { onConflict: 'campaign_id,contact_id' as any }) // Ajuste conforme sua constraint unique
         .select();
 
       if (error) throw error;
 
-      // Update total recipients count
+      // Atualiza contador total na campanha
       await supabase
         .from('campaigns')
         .update({ total_destinatarios: contactIds.length })
@@ -170,7 +187,7 @@ export const useAddCampaignRecipients = () => {
   });
 };
 
-// Send campaign
+// --- 7. DISPARAR/ENVIAR CAMPANHA (ATUALIZADO) ---
 export const useSendCampaign = () => {
   const queryClient = useQueryClient();
 
@@ -180,13 +197,17 @@ export const useSendCampaign = () => {
       scheduledAt,
       frequencyLimitHours = 24,
       bypassFrequencyCheck = false,
+      templateName, // <--- NOVO
+      useTemplateApi = false, // <--- NOVO
     }: {
       campaignId: string;
       scheduledAt?: Date;
       frequencyLimitHours?: number;
       bypassFrequencyCheck?: boolean;
+      templateName?: string;
+      useTemplateApi?: boolean;
     }) => {
-      // Get campaign data
+      // 1. Busca dados da campanha
       const { data: campaign, error: campaignError } = await supabase
         .from('campaigns')
         .select(`
@@ -201,7 +222,7 @@ export const useSendCampaign = () => {
 
       if (campaignError) throw campaignError;
 
-      // If scheduling for later
+      // 2. Agendamento
       if (scheduledAt && scheduledAt > new Date()) {
         const { error: updateError } = await supabase
           .from('campaigns')
@@ -215,7 +236,7 @@ export const useSendCampaign = () => {
         return { success: true, scheduled: true, scheduledAt };
       }
 
-      // Update status to sending
+      // 3. Atualiza status para 'enviando'
       await supabase
         .from('campaigns')
         .update({
@@ -224,7 +245,7 @@ export const useSendCampaign = () => {
         })
         .eq('id', campaignId);
 
-      // Prepare recipients for the edge function
+      // 4. Prepara lista de envio
       const recipients = campaign.campaign_recipients?.map((r: any) => ({
         whatsapp: r.contacts?.whatsapp,
         nome: r.contacts?.nome,
@@ -234,12 +255,16 @@ export const useSendCampaign = () => {
         contact_id: r.contact_id,
       })).filter((r: any) => r.whatsapp) || [];
 
-      // Call edge function to send with frequency limit
+      // 5. Chama a Edge Function com os novos parâmetros
       const { data, error } = await supabase.functions.invoke('campaign-send', {
         body: {
           campaign_id: campaignId,
           name: campaign.nome,
           message_template: campaign.mensagem,
+          // Envia os dados do template SE estiver usando
+          template_name: useTemplateApi ? templateName : undefined,
+          use_template_api: useTemplateApi,
+
           recipients,
           frequency_limit_hours: frequencyLimitHours,
           bypass_frequency_check: bypassFrequencyCheck,
@@ -248,7 +273,7 @@ export const useSendCampaign = () => {
 
       if (error) throw error;
 
-      // Update campaign with results
+      // 6. Processa retorno e atualiza banco
       const sent = data.summary?.sent || 0;
       const failed = data.summary?.failed || 0;
       const blockedByFrequency = data.summary?.blocked_by_frequency || 0;
@@ -263,12 +288,12 @@ export const useSendCampaign = () => {
         })
         .eq('id', campaignId);
 
-      // Update individual recipient status
+      // Atualiza status individual dos recipients (Lote seria melhor, mas mantendo lógica original)
       if (data.results) {
-        for (const result of data.results) {
+        const updates = data.results.map(async (result: any) => {
           const recipient = recipients.find((r: any) => r.whatsapp === result.recipient);
           if (recipient) {
-            await supabase
+            return supabase
               .from('campaign_recipients')
               .update({
                 status: result.status === 'sent' ? 'enviado' : result.status,
@@ -279,35 +304,29 @@ export const useSendCampaign = () => {
               .eq('campaign_id', campaignId)
               .eq('contact_id', recipient.contact_id);
           }
-        }
-      }
-
-      // Mark blocked contacts
-      if (data.blocked_contacts && data.blocked_contacts.length > 0) {
-        for (const blockedWhatsapp of data.blocked_contacts) {
-          const recipient = recipients.find((r: any) => r.whatsapp === blockedWhatsapp);
-          if (recipient) {
-            await supabase
-              .from('campaign_recipients')
-              .update({
-                status: 'bloqueado_frequencia',
-                erro: `Bloqueado: mensagem enviada nas últimas ${frequencyLimitHours}h`,
-              })
-              .eq('campaign_id', campaignId)
-              .eq('contact_id', recipient.contact_id);
-          }
-        }
+        });
+        await Promise.all(updates);
       }
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      if (data.scheduled) {
+        toast.success(`Agendado para ${new Date(data.scheduledAt).toLocaleString()}`);
+      } else {
+        toast.success(`Disparo concluído! ${data.summary?.sent || 0} enviados.`);
+      }
     },
+    onError: (error: any) => {
+      toast.error('Erro no envio: ' + error.message);
+    }
   });
 };
 
-// Get departments for filter (replacing old useSecretarias)
+// --- 8. HELPERS DE FILTROS ---
+
+// Busca Departamentos (antigo Secretarias) para o select de filtro
 export const useSecretarias = () => {
   return useQuery({
     queryKey: ['departments-for-campaigns'],
@@ -319,24 +338,24 @@ export const useSecretarias = () => {
         .order('name');
 
       if (error) throw error;
-
       return data || [];
     },
   });
 };
 
-// Get unique tags for filter
+// Busca Tags únicas
 export const useTags = () => {
   return useQuery({
     queryKey: ['tags'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contacts')
-        .select('tags');
+        .select('tags')
+        .not('tags', 'is', null);
 
       if (error) throw error;
 
-      // Flatten and get unique tags
+      // Flatten e Unique
       const allTags = data.flatMap(c => c.tags || []);
       const unique = [...new Set(allTags)];
       return unique as string[];
@@ -344,7 +363,7 @@ export const useTags = () => {
   });
 };
 
-// Get contacts count by filter
+// Conta contatos baseado no filtro (Prévia de Público)
 export const useContactsCount = (filter: { secretaria?: string; tags?: string[] }) => {
   return useQuery({
     queryKey: ['contacts-count', filter],
@@ -355,8 +374,9 @@ export const useContactsCount = (filter: { secretaria?: string; tags?: string[] 
         .eq('ativo', true)
         .not('whatsapp', 'is', null);
 
+      // Correção: filtro por department_id
       if (filter.secretaria && filter.secretaria !== 'all') {
-        query = query.eq('department_id', filter.secretaria); // Now using department_id
+        query = query.eq('department_id', filter.secretaria);
       }
 
       if (filter.tags && filter.tags.length > 0) {
@@ -372,7 +392,7 @@ export const useContactsCount = (filter: { secretaria?: string; tags?: string[] 
   });
 };
 
-// Get contacts by filter
+// Busca contatos reais baseado no filtro (Para popular a campanha)
 export const useContactsByFilter = (filter: { secretaria?: string; tags?: string[] }) => {
   return useQuery({
     queryKey: ['contacts-by-filter', filter],
@@ -384,7 +404,7 @@ export const useContactsByFilter = (filter: { secretaria?: string; tags?: string
         .not('whatsapp', 'is', null);
 
       if (filter.secretaria && filter.secretaria !== 'all') {
-        query = query.eq('department_id', filter.secretaria); // Now using department_id
+        query = query.eq('department_id', filter.secretaria);
       }
 
       if (filter.tags && filter.tags.length > 0) {

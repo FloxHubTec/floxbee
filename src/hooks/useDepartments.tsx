@@ -3,10 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
 type Department = Database['public']['Tables']['departments']['Row'];
-type DepartmentInsert = Database['public']['Tables']['departments']['Insert'];
-type DepartmentUpdate = Database['public']['Tables']['departments']['Update'];
+// Adicionamos a tipagem manual caso o typegen do Supabase ainda não tenha atualizado
+type DepartmentRow = Department & { auto_assign_to?: string | null };
 
-export interface DepartmentWithStats extends Department {
+export interface DepartmentWithStats extends DepartmentRow {
     contacts_count?: number;
 }
 
@@ -21,7 +21,7 @@ export const useDepartments = () => {
                 .order('name');
 
             if (error) throw error;
-            return data as Department[];
+            return data as DepartmentRow[];
         },
     });
 };
@@ -38,7 +38,7 @@ export const useActiveDepartments = () => {
                 .order('name');
 
             if (error) throw error;
-            return data as Department[];
+            return data as DepartmentRow[];
         },
     });
 };
@@ -49,7 +49,6 @@ export const useDepartment = (id: string | null) => {
         queryKey: ['department', id],
         queryFn: async () => {
             if (!id) return null;
-
             const { data, error } = await supabase
                 .from('departments')
                 .select('*')
@@ -57,7 +56,7 @@ export const useDepartment = (id: string | null) => {
                 .single();
 
             if (error) throw error;
-            return data as Department;
+            return data as DepartmentRow;
         },
         enabled: !!id,
     });
@@ -68,27 +67,17 @@ export const useCreateDepartment = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (department: Omit<DepartmentInsert, 'id' | 'created_at' | 'updated_at'>) => {
-            const { data: { user } } = await supabase.auth.getUser();
-
-            // Get profile ID from auth user ID
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('user_id', user?.id)
-                .single();
-
-            const { data, error } = await supabase
+        mutationFn: async (values: { name: string; description?: string; active?: boolean; auto_assign_to?: string | null }) => {
+            const { error } = await supabase
                 .from('departments')
-                .insert({
-                    ...department,
-                    owner_id: profile?.id,
-                })
-                .select()
-                .single();
+                .insert([{
+                    name: values.name,
+                    description: values.description,
+                    active: values.active,
+                    auto_assign_to: values.auto_assign_to // Novo campo
+                }]);
 
             if (error) throw error;
-            return data;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['departments'] });
@@ -101,37 +90,15 @@ export const useUpdateDepartment = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id, ...updates }: DepartmentUpdate & { id: string }) => {
-            const { data, error } = await supabase
-                .from('departments')
-                .update({
-                    ...updates,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', id)
-                .select()
-                .single();
-
-            if (error) throw error;
-            return data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['departments'] });
-            queryClient.invalidateQueries({ queryKey: ['department'] });
-        },
-    });
-};
-
-// Delete department (soft delete by setting active = false)
-export const useDeleteDepartment = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async (id: string) => {
-            // Soft delete - just set active to false
+        mutationFn: async ({ id, ...values }: { id: string; name?: string; description?: string; active?: boolean; auto_assign_to?: string | null }) => {
             const { error } = await supabase
                 .from('departments')
-                .update({ active: false })
+                .update({
+                    name: values.name,
+                    description: values.description,
+                    active: values.active,
+                    auto_assign_to: values.auto_assign_to // Novo campo
+                })
                 .eq('id', id);
 
             if (error) throw error;
@@ -142,7 +109,24 @@ export const useDeleteDepartment = () => {
     });
 };
 
-// Toggle department active status
+export const useDeleteDepartment = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase
+                .from('departments')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['departments'] });
+        },
+    });
+};
+
 export const useToggleDepartmentStatus = () => {
     const queryClient = useQueryClient();
 
@@ -161,12 +145,10 @@ export const useToggleDepartmentStatus = () => {
     });
 };
 
-// Get departments with contact counts
 export const useDepartmentsWithStats = () => {
     return useQuery({
         queryKey: ['departments', 'with-stats'],
         queryFn: async () => {
-            // First get all departments
             const { data: departments, error: deptError } = await supabase
                 .from('departments')
                 .select('*')
@@ -174,7 +156,6 @@ export const useDepartmentsWithStats = () => {
 
             if (deptError) throw deptError;
 
-            // Then get contact counts for each department
             const departmentsWithStats = await Promise.all(
                 departments.map(async (dept) => {
                     const { count } = await supabase
