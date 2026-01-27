@@ -201,8 +201,10 @@ const Inbox: React.FC = () => {
           userMessage: content,
           context: {
             servidor_nome: selectedConversation.contact?.nome,
-            servidor_matricula: (selectedConversation.contact as any)?.matricula, // cast opcional
+            servidor_matricula: (selectedConversation.contact as any)?.matricula,
             servidor_secretaria: (selectedConversation.contact as any)?.secretaria,
+            contact_id: selectedConversation.contact?.id,
+            conversation_id: selectedConversation.id,
           },
         });
       }

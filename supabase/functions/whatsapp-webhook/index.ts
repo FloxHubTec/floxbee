@@ -437,62 +437,21 @@ serve(async (req) => {
                       context: {
                         servidor_nome: contactName,
                         owner_id: ownerId,
+                        contact_id: contactId,
+                        conversation_id: conversationId,
+                        whatsapp_number: whatsappNumber,
                       },
                     }),
                   });
 
                   if (aiResponse.ok) {
                     const aiData = await aiResponse.json();
-                    console.log("AI Response generated:", {
+                    console.log("AI Response processed by ai-chat function:", {
                       needsHumanTransfer: aiData.needsHumanTransfer,
                       messagePreview: aiData.message?.substring(0, 100),
                     });
 
-                    // Save AI response as message
-                    if (aiData.message) {
-                      await supabase
-                        .from("messages")
-                        .insert({
-                          conversation_id: conversationId,
-                          content: aiData.message,
-                          sender_type: "ia",
-                          message_type: "text",
-                          status: "pending",
-                        });
-
-                      // Send AI response via WhatsApp
-                      const sendResponse = await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          Authorization: `Bearer ${supabaseKey}`,
-                        },
-                        body: JSON.stringify({
-                          to: whatsappNumber,
-                          message: aiData.message,
-                          owner_id: ownerId,
-                        }),
-                      });
-
-                      if (sendResponse.ok) {
-                        console.log("AI response sent via WhatsApp");
-                      } else {
-                        console.error("Failed to send AI response:", await sendResponse.text());
-                      }
-
-                      // If needs human transfer, update conversation
-                      if (aiData.needsHumanTransfer) {
-                        await supabase
-                          .from("conversations")
-                          .update({
-                            is_bot_active: false,
-                            status: "aguardando",
-                          })
-                          .eq("id", conversationId);
-
-                        console.log("Conversation transferred to human agent");
-                      }
-                    }
+                    // Note: ai-chat now handles saving the message and calling whatsapp-send
                   }
                 } catch (aiError) {
                   console.error("Error calling AI:", aiError);
