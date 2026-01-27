@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  Users, Shield, Crown, UserCheck, Search, ShieldAlert, Briefcase, 
-  MoreVertical, Pencil, Trash2, Key 
+import {
+  Users, Shield, Crown, UserCheck, Search, ShieldAlert, Briefcase,
+  MoreVertical, Pencil, Trash2, Key
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -61,14 +61,14 @@ const UserManagement: React.FC = () => {
   const { users, isLoading, updateRole, toggleUserStatus, stats, refetch } = useUsers();
   const { user: currentUser, profile: currentProfile, isAdmin, isSuperadmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Estados para Modais de Edição e Exclusão
   const [activeTab, setActiveTab] = useState(isSuperadmin ? 'admins' : 'team');
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [deleteUser, setDeleteUser] = useState<UserWithRole | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  
+
   // Estado do formulário de edição
   const [editForm, setEditForm] = useState({
     nome: '',
@@ -98,20 +98,19 @@ const UserManagement: React.FC = () => {
   // 1. Lista de Admins (Para Superadmin ver seus clientes)
   const adminUsers = users.filter(u => u.role === 'admin' || u.role === 'superadmin');
 
-  // 2. Lista Operacional (Para Superadmin ver APENAS sua equipe)
+  // 2. Lista Operacional (Supervisor e Agente)
   const operationalUsers = users.filter(u => {
-    // É operacional?
     const isOp = u.role === 'agente' || u.role === 'supervisor';
-    
     if (!isOp) return false;
 
-    // Se sou Superadmin, só mostro quem EU criei (minha equipe direta)
+    // Se sou Superadmin, mostro quem EU criei ou quem é do meu "tenant"
+    // (A RLS já cuida de filtrar por owner_id, então aqui apenas garantimos a distinção de abas)
     if (isSuperadmin) {
-      return u.created_by === currentProfile?.id;
+      // O Superadmin vê seus colaboradores diretos na aba de Time
+      return u.role === 'agente' || u.role === 'supervisor';
     }
-    
-    // Se sou Admin comum, vejo todos operacionais (pois a RLS já filtra por tenant/owner se configurado, 
-    // ou assumimos que o Admin vê tudo abaixo dele)
+
+    // Admins e outros vêm a lista unificada filtrada pela RLS
     return true;
   });
 
@@ -169,14 +168,14 @@ const UserManagement: React.FC = () => {
       // Chamar Edge Function para deletar usuário do Auth (Supabase Admin API)
       // Por segurança, apenas deletamos o profile/role lógico aqui se não tiver edge function,
       // mas o ideal é remover do Auth. Vamos assumir uma chamada de API ou Soft Delete.
-      
+
       // Opção A: Soft Delete (Desativar) - Mais seguro para integridade
       // toggleUserStatus.mutate({ id: deleteUser.id, ativo: false });
-      
+
       // Opção B: Delete Real (Requer Edge Function 'delete-user' ou cascade)
       // Para este exemplo, vamos desativar e limpar dados sensíveis via update, 
       // ou chamar a função se existir.
-      
+
       const { error } = await supabase.functions.invoke('delete-user', {
         body: { user_id: deleteUser.user_id }
       });
@@ -222,7 +221,7 @@ const UserManagement: React.FC = () => {
 
   const handleToggleStatus = (targetUser: UserWithRole) => {
     if (targetUser.role === 'superadmin' && !isSuperadmin) return;
-    if (targetUser.user_id === currentUser?.id) return; 
+    if (targetUser.user_id === currentUser?.id) return;
     toggleUserStatus.mutate({ id: targetUser.id, ativo: !targetUser.ativo });
   };
 
@@ -242,9 +241,8 @@ const UserManagement: React.FC = () => {
           return (
             <div
               key={user.id}
-              className={`flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border transition-all ${
-                user.ativo ? 'bg-card hover:border-primary/30' : 'bg-muted/30 opacity-70'
-              }`}
+              className={`flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border transition-all ${user.ativo ? 'bg-card hover:border-primary/30' : 'bg-muted/30 opacity-70'
+                }`}
             >
               {/* Info do Usuário */}
               <div className="flex items-center gap-4 mb-4 md:mb-0">
@@ -340,7 +338,7 @@ const UserManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Modais (Dialogs) */}
-      
+
       {/* 1. Modal de Edição */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
@@ -348,12 +346,12 @@ const UserManagement: React.FC = () => {
             <DialogTitle>Editar Usuário</DialogTitle>
             <DialogDescription>Alterar dados e permissões de {editingUser?.nome}</DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Nome Completo</Label>
-              <Input 
-                value={editForm.nome} 
+              <Input
+                value={editForm.nome}
                 onChange={(e) => setEditForm(prev => ({ ...prev, nome: e.target.value }))}
               />
             </div>
@@ -363,8 +361,8 @@ const UserManagement: React.FC = () => {
               <div className="grid grid-cols-2 gap-3 p-3 border rounded-md bg-muted/10">
                 {AVAILABLE_PERMISSIONS.map((perm) => (
                   <div key={perm.id} className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`edit-${perm.id}`} 
+                    <Checkbox
+                      id={`edit-${perm.id}`}
                       checked={!!editForm.permissions[perm.id]}
                       onCheckedChange={() => handleTogglePermission(perm.id)}
                     />
@@ -393,7 +391,7 @@ const UserManagement: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Usuário permanentemente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação removerá o acesso de <strong>{deleteUser?.nome}</strong> e não pode ser desfeita. 
+              Esta ação removerá o acesso de <strong>{deleteUser?.nome}</strong> e não pode ser desfeita.
               Histórico de conversas e tickets serão mantidos, mas desvinculados.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -425,8 +423,8 @@ const UserManagement: React.FC = () => {
             <div>
               <CardTitle>Gerenciamento de Acessos</CardTitle>
               <CardDescription>
-                {isSuperadmin 
-                  ? "Visão global de clientes e controle de sua equipe interna." 
+                {isSuperadmin
+                  ? "Visão global de clientes e controle de sua equipe interna."
                   : "Gerencie os membros da sua equipe."}
               </CardDescription>
             </div>
@@ -437,8 +435,8 @@ const UserManagement: React.FC = () => {
           <div className="flex items-center gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
-                placeholder="Buscar por nome ou email..." 
+              <Input
+                placeholder="Buscar por nome ou email..."
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -458,7 +456,7 @@ const UserManagement: React.FC = () => {
                   <span className="font-semibold">Minha Equipe Operacional</span>
                 </TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="admins" className="mt-0">
                 <UserList data={filterUsers(adminUsers)} />
               </TabsContent>

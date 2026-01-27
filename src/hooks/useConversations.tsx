@@ -86,7 +86,31 @@ export const useMessages = (conversationId: string | null) => {
 
       if (error) throw error;
 
-      // O frontend usará o fallback "Atendente" ou poderemos buscar os nomes separadamente no futuro
+      // Buscar nomes dos perfis para mensagens de agentes
+      const agentIds = [...new Set(data
+        .filter(m => m.sender_type === 'user' || m.sender_type === 'agente')
+        .map(m => m.sender_id)
+        .filter(Boolean)
+      )];
+
+      if (agentIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, nome")
+          .in("id", agentIds);
+
+        const profileMap = Object.fromEntries(
+          (profiles || []).map(p => [p.id, p.nome])
+        );
+
+        return data.map(m => ({
+          ...m,
+          sender_profile: m.sender_id && profileMap[m.sender_id]
+            ? { nome: profileMap[m.sender_id] }
+            : null
+        })) as MessageWithSender[];
+      }
+
       return data as MessageWithSender[];
     },
     enabled: !!conversationId,
@@ -166,6 +190,36 @@ export const useSendMessage = () => {
         .single();
 
       if (messageError) throw messageError;
+
+      // --- INTEGRAÇÃO WHATSAPP ---
+      if (['user', 'agente'].includes(senderType)) {
+        try {
+          // 1. Busca a conversa para pegar o telefone e owner_id
+          const { data: conv } = await supabase
+            .from("conversations")
+            .select("owner_id, contact:contacts(whatsapp)")
+            .eq("id", conversationId)
+            .single();
+
+          const to = (conv?.contact as any)?.whatsapp;
+          const owner_id = conv?.owner_id;
+
+          if (to) {
+            // 2. Chama a Edge Function whatsapp-send
+            await supabase.functions.invoke("whatsapp-send", {
+              body: {
+                to,
+                message: content,
+                owner_id,
+                type: "text"
+              },
+            });
+          }
+        } catch (wsError) {
+          console.error("Erro ao disparar WhatsApp:", wsError);
+          // Opcional: toast.error("Mensagem salva, mas erro ao enviar para WhatsApp");
+        }
+      }
 
       const updateData: any = {
         last_message_at: new Date().toISOString(),

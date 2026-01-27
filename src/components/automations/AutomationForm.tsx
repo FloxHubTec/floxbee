@@ -30,11 +30,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, X, Plus } from "lucide-react";
-import { 
-  TriggerType, 
-  TriggerConfig, 
+import {
+  TriggerType,
+  TriggerConfig,
   AutomationRuleWithTemplate,
-  TRIGGER_TYPES 
+  TRIGGER_TYPES
 } from "@/hooks/useAutomations";
 
 const automationSchema = z.object({
@@ -179,6 +179,8 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
       mensagem: data.use_template ? undefined : data.mensagem,
       template_id: data.use_template ? data.template_id : undefined,
       ativo: data.ativo,
+      // @ts-ignore - 'config' and 'trigger_config' redundancy in DB
+      config: triggerConfig
     });
 
     form.reset();
@@ -393,14 +395,31 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
                   <FormItem>
                     <FormLabel>Mensagem</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Digite a mensagem automática..."
-                        className="min-h-[100px]"
-                        {...field}
-                      />
+                      <div className="space-y-3">
+                        <Textarea
+                          placeholder="Digite a mensagem automática..."
+                          className="min-h-[100px]"
+                          {...field}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {["nome", "whatsapp", "email", "matricula", "secretaria"].map((v) => (
+                            <Badge
+                              key={v}
+                              variant="outline"
+                              className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                              onClick={() => {
+                                const current = form.getValues("mensagem") || "";
+                                form.setValue("mensagem", current + ` {{${v}}}`);
+                              }}
+                            >
+                              {`{{${v}}}`}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
                     </FormControl>
                     <FormDescription>
-                      Use {"{{nome}}"}, {"{{whatsapp}}"} para personalizar
+                      Clique nas variáveis acima para inseri-las na mensagem
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

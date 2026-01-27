@@ -337,13 +337,14 @@ const Inbox: React.FC = () => {
     );
   };
 
-  const getSenderInfo = (senderType: string) => {
-    switch (senderType) {
+  const getSenderInfo = (message: MessageWithSender) => {
+    switch (message.sender_type) {
       case 'ia':
-        return { icon: Bot, label: 'FloxBee IA', color: 'text-primary' };
+        return { icon: Bot, label: 'FloxBee IA', color: 'bg-indigo-600', textColor: 'text-white' };
       case 'user': // Agente
       case 'agente':
-        return { icon: User, label: 'Atendente', color: 'text-accent-foreground' };
+        const name = message.sender_profile?.nome || 'Atendente';
+        return { icon: User, label: name, color: 'bg-primary', textColor: 'text-primary-foreground' };
       default:
         return null;
     }
@@ -591,75 +592,88 @@ const Inbox: React.FC = () => {
                   </div>
                 ) : (
                   messages.map((message) => {
-                    // Contact é quem envia 'contact'. Todo resto (user, agente, ia) é do lado direito.
-                    const isFromContact = message.sender_type === 'contact';
-                    const senderInfo = getSenderInfo(message.sender_type);
+                    const isFromContact = message.sender_type === 'contact' || message.sender_type === 'servidor';
+                    const sender = getSenderInfo(message);
 
                     return (
-                                  <div
-                                    key={message.id}
-                                    className={cn(
-                                      'flex w-full mb-1',
-                                      isFromContact ? 'justify-start' : 'justify-end'
-                                    )}
-                                  >
-                                    {isFromContact && (
-                                      <Avatar className="w-8 h-8 mr-2 mt-auto mb-0.5">
-                                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                                          {selectedConversation?.contact?.nome?.substring(0, 2).toUpperCase() || '??'}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                    )}
-                                    <div
-                                      className={cn(
-                                        'max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm relative',
-                                        isFromContact
-                                          ? 'bg-card rounded-tl-none border border-border text-foreground'
-                                          : 'rounded-tr-none bg-primary text-primary-foreground',
-                                        message.sender_type === 'ia' && 'bg-indigo-600 text-white',
-                                        isFromContact ? 'ml-0' : 'mr-0'
-                                      )}
-                                    >
-                                      {/* Nome do contato para mensagens do contato */}
-                                      {isFromContact && (
-                                        <div className="flex items-center gap-1.5 mb-1 opacity-90">
-                                          <span className="text-[10px] font-bold uppercase">{selectedConversation?.contact?.nome || 'Contato'}</span>
-                                        </div>
-                                      )}
-                                      {/* Info do sistema para mensagens do sistema */}
-                                      {senderInfo && !isFromContact && (
-                                        <div className="flex items-center gap-1.5 mb-1 opacity-90">
-                                          <senderInfo.icon className="w-3 h-3" />
-                                          <span className="text-[10px] font-bold uppercase">{senderInfo.label}</span>
-                                        </div>
-                                      )}
-                                      <p className="text-[13.5px] md:text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                                      {/* Verifica se metadata existe e é um objeto antes de renderizar */}
-                                      {message.metadata && typeof message.metadata === 'object' && renderAttachment(message.metadata)}
+                      <div
+                        key={message.id}
+                        className={cn(
+                          'flex w-full mb-2 items-start',
+                          isFromContact ? 'justify-start' : 'justify-end'
+                        )}
+                      >
+                        {isFromContact && (
+                          <Avatar className="w-8 h-8 mr-2 shrink-0">
+                            <AvatarFallback className="bg-primary/10 text-primary font-bold text-[10px]">
+                              {selectedConversation?.contact?.nome?.substring(0, 2).toUpperCase() || '??'}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
 
-                                      <div
-                                        className={cn(
-                                          'flex items-center gap-1.5 mt-1.5 opacity-70',
-                                          isFromContact ? 'justify-start text-muted-foreground' : 'justify-end text-white/80'
-                                        )}
-                                      >
-                                        <span className="text-[10px] font-medium">
-                                          {format(new Date(message.created_at), 'HH:mm', { locale: ptBR })}
-                                        </span>
-                                        {!isFromContact && (
-                                          <CheckCheck
-                                            className={cn(
-                                              'w-3.5 h-3.5',
-                                              message.status === 'read' ? 'text-blue-300' : 'text-white/60'
-                                            )}
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-                                    {!isFromContact && (
-                                      <div className="w-8 h-8 ml-2" />
-                                    )}
-                                  </div>
+                        <div className={cn(
+                          'flex flex-col',
+                          isFromContact ? 'items-start' : 'items-end'
+                        )}>
+                          <div
+                            className={cn(
+                              'max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm relative',
+                              isFromContact
+                                ? 'bg-card rounded-tl-none border border-border text-foreground'
+                                : cn('rounded-tr-none', sender?.color || 'bg-primary', sender?.textColor || 'text-primary-foreground'),
+                            )}
+                          >
+                            {/* Nome do remetente */}
+                            <div className="flex items-center gap-1.5 mb-1 opacity-70">
+                              {isFromContact ? (
+                                <span className="text-[10px] font-bold uppercase tracking-tight">
+                                  {selectedConversation?.contact?.nome || 'Contato'}
+                                </span>
+                              ) : (
+                                <>
+                                  {sender?.icon && <sender.icon className="w-3 h-3" />}
+                                  <span className="text-[10px] font-bold uppercase tracking-tight">
+                                    {sender?.label}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            <p className="text-[13.5px] md:text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+
+                            {message.metadata && typeof message.metadata === 'object' && renderAttachment(message.metadata)}
+
+                            <div
+                              className={cn(
+                                'flex items-center gap-1.5 mt-1.5 opacity-60',
+                                isFromContact ? 'justify-start' : 'justify-end'
+                              )}
+                            >
+                              <span className="text-[9px] font-medium">
+                                {format(new Date(message.created_at), 'HH:mm', { locale: ptBR })}
+                              </span>
+                              {!isFromContact && (
+                                <CheckCheck
+                                  className={cn(
+                                    'w-3 h-3',
+                                    message.status === 'read' ? 'text-blue-300' : 'opacity-50'
+                                  )}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {!isFromContact && (
+                          <div className="w-8 h-8 ml-2 shrink-0">
+                            <Avatar className="w-8 h-8">
+                              <AvatarFallback className="bg-secondary text-muted-foreground font-bold text-[10px]">
+                                <User className="w-4 h-4" />
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                        )}
+                      </div>
                     );
                   })
                 )}

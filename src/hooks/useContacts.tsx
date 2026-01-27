@@ -175,9 +175,18 @@ export const useValidateWhatsApp = () => {
 
       // 2. Chama a Edge Function
       // A Edge Function AGORA ATUALIZA O BANCO SOZINHA
+
+      const { data: creatorProfile } = await supabase
+        .from("profiles")
+        .select("owner_id, id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      const owner_id = creatorProfile?.owner_id || creatorProfile?.id;
+
       const { data: validationData, error: validationError } = await supabase.functions.invoke(
         "validate-whatsapp",
-        { body: { numbers } }
+        { body: { numbers, owner_id } }
       );
 
       if (validationError) throw validationError;

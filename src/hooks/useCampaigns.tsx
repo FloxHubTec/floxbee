@@ -418,3 +418,93 @@ export const useContactsByFilter = (filter: { secretaria?: string; tags?: string
     },
   });
 };
+
+// --- 9. DUPLICAR CAMPANHA ---
+export const useDuplicateCampaign = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (campaignId: string) => {
+      // 1. Busca dados da campanha original
+      const { data: original, error: fetchError } = await supabase
+        .from("campaigns")
+        .select("*, campaign_recipients(contact_id)")
+        .eq("id", campaignId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 2. Cria nova campanha (rascunho)
+      const { data: copy, error: createError } = await supabase
+        .from("campaigns")
+        .insert({
+          nome: `${original.nome} (Cópia)`,
+          descricao: original.descricao,
+          mensagem: original.mensagem,
+          template_id: original.template_id,
+          filtro_secretaria: original.filtro_secretaria,
+          filtro_tags: original.filtro_tags,
+          total_destinatarios: original.total_destinatarios,
+          status: "rascunho",
+          created_by: original.created_by,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // 3. Copia destinatários
+      if (original.campaign_recipients && original.campaign_recipients.length > 0) {
+        const recipients = original.campaign_recipients.map((r: any) => ({
+          campaign_id: copy.id,
+          contact_id: r.contact_id,
+          status: "pendente",
+        }));
+
+        const { error: recipientError } = await supabase
+          .from("campaign_recipients")
+          .insert(recipients);
+
+        if (recipientError) throw recipientError;
+      }
+
+      return copy;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      toast.success("Campanha duplicada com sucesso!");
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao duplicar campanha: " + error.message);
+    }
+  });
+};
+
+// --- 10. ATUALIZAR STATUS (PAUSAR/RETOMAR) ---
+export const useUpdateCampaignStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .update({ status })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      const statusLabel = variables.status === "pausada" ? "pausada" :
+        variables.status === "rascunho" ? "movida para rascunhos" :
+          variables.status === "agendada" ? "agendada" : "atualizada";
+      toast.success(`Campanha ${statusLabel}!`);
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao atualizar status: " + error.message);
+    }
+  });
+};

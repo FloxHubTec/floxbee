@@ -20,7 +20,10 @@ import {
   AlertTriangle,
   Download,
   Edit,
-  Play
+  Play,
+  Copy,
+  Pause,
+  RefreshCcw
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -75,6 +78,8 @@ import {
   useContactsByFilter,
   useAddCampaignRecipients,
   useSendCampaign,
+  useDuplicateCampaign,
+  useUpdateCampaignStatus,
   Campaign
 } from '@/hooks/useCampaigns';
 import { useTemplates, previewTemplate, SAMPLE_VARIABLES } from '@/hooks/useTemplates';
@@ -96,6 +101,8 @@ const getStatusConfig = (status: CampaignStatus) => {
       return { label: 'Rascunho', icon: MessageSquare, color: 'bg-secondary text-secondary-foreground border-border' };
     case 'cancelada':
       return { label: 'Cancelada', icon: XCircle, color: 'bg-destructive/10 text-destructive border-destructive/20' };
+    case 'pausada':
+      return { label: 'Pausada', icon: Pause, color: 'bg-orange-500/10 text-orange-600 border-orange-200' };
     default:
       return { label: status, icon: MessageSquare, color: 'bg-muted text-muted-foreground' };
   }
@@ -114,6 +121,8 @@ const Campaigns: React.FC = () => {
   const deleteCampaign = useDeleteCampaign();
   const addRecipients = useAddCampaignRecipients();
   const sendCampaign = useSendCampaign();
+  const duplicateCampaign = useDuplicateCampaign();
+  const updateCampaignStatus = useUpdateCampaignStatus();
 
   // List state
   const [searchQuery, setSearchQuery] = useState('');
@@ -365,6 +374,18 @@ const Campaigns: React.FC = () => {
     try {
       await deleteCampaign.mutateAsync(deletingCampaign.id);
       setDeletingCampaign(null);
+    } catch (error) { }
+  };
+
+  const handleDuplicateCampaign = async (campaign: Campaign) => {
+    try {
+      await duplicateCampaign.mutateAsync(campaign.id);
+    } catch (error) { }
+  };
+
+  const handleUpdateStatus = async (campaign: Campaign, newStatus: string) => {
+    try {
+      await updateCampaignStatus.mutateAsync({ id: campaign.id, status: newStatus });
     } catch (error) { }
   };
 
@@ -649,14 +670,38 @@ const Campaigns: React.FC = () => {
                           <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 text-muted-foreground hover:text-foreground"><MoreHorizontal className="w-5 h-5" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          {campaign.status === 'rascunho' && (
-                            <>
-                              <DropdownMenuItem onClick={() => handleEditCampaign(campaign)}><Edit className="w-4 h-4 mr-2" /> Editar</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleSendNow(campaign)}><Play className="w-4 h-4 mr-2 text-green-600" /> Enviar Agora</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </>
+                          {(campaign.status === 'rascunho' || campaign.status === 'agendada' || campaign.status === 'pausada') && (
+                            <DropdownMenuItem onClick={() => handleEditCampaign(campaign)}>
+                              <Edit className="w-4 h-4 mr-2" /> Editar
+                            </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeletingCampaign(campaign)}><Trash2 className="w-4 h-4 mr-2" /> Excluir</DropdownMenuItem>
+
+                          {campaign.status === 'rascunho' && (
+                            <DropdownMenuItem onClick={() => handleSendNow(campaign)}>
+                              <Play className="w-4 h-4 mr-2 text-green-600" /> Enviar Agora
+                            </DropdownMenuItem>
+                          )}
+
+                          {(campaign.status === 'agendada' || campaign.status === 'enviando') && (
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(campaign, 'pausada')}>
+                              <Pause className="w-4 h-4 mr-2 text-orange-600" /> Pausar
+                            </DropdownMenuItem>
+                          )}
+
+                          {campaign.status === 'pausada' && (
+                            <DropdownMenuItem onClick={() => handleUpdateStatus(campaign, 'rascunho')}>
+                              <RefreshCcw className="w-4 h-4 mr-2 text-blue-600" /> Retomar (Rascunho)
+                            </DropdownMenuItem>
+                          )}
+
+                          <DropdownMenuItem onClick={() => handleDuplicateCampaign(campaign)}>
+                            <Copy className="w-4 h-4 mr-2" /> Duplicar
+                          </DropdownMenuItem>
+
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeletingCampaign(campaign)}>
+                            <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

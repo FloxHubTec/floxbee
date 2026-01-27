@@ -86,7 +86,7 @@ const CreateUserDialog: React.FC = () => {
       setPermissions({});
       setOpen(false);
 
-      queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['users-list'] });
     } catch (error: any) {
       console.error('Error creating user:', error);
       toast.error('Erro ao criar usuário', { description: error.message });

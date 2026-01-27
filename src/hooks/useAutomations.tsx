@@ -14,10 +14,14 @@ export interface AutomationRule {
   id: string;
   nome: string;
   tipo: string;
-  config: TriggerConfig; // JSONB no banco - campo real do schema
+  config: TriggerConfig; // JSONB no banco
+  trigger_config?: TriggerConfig; // Algumas partes do código usam trigger_config
+  mensagem?: string | null;
+  template_id?: string | null;
   ativo: boolean;
   created_at: string;
   created_by?: string | null;
+  owner_id?: string | null;
 }
 
 export interface AutomationRuleWithTemplate extends AutomationRule {
