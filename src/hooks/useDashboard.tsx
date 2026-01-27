@@ -3,110 +3,104 @@ import { supabase } from '@/integrations/supabase/client';
 import { subDays, startOfDay, endOfDay, format, subHours, startOfHour } from 'date-fns';
 
 // Main dashboard metrics
-export const useDashboardMetrics = () => {
+export const useDashboardMetrics = (filters?: { startDate?: string; endDate?: string; agentId?: string }) => {
   return useQuery({
-    queryKey: ['dashboard-metrics'],
+    queryKey: ['dashboard-metrics', filters],
     queryFn: async () => {
-      const today = new Date();
-      const startOfToday = startOfDay(today).toISOString();
-      const endOfToday = endOfDay(today).toISOString();
-      const yesterday = subDays(today, 1);
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('owner_id, id')
+        .eq('user_id', user?.id)
+        .single();
+
+      const ownerId = profile?.owner_id || profile?.id;
+
+      const startDate = filters?.startDate || startOfDay(new Date()).toISOString();
+      const endDate = filters?.endDate || endOfDay(new Date()).toISOString();
+      const agentId = filters?.agentId;
+
+      const yesterday = subDays(new Date(startDate), 1);
       const startOfYesterday = startOfDay(yesterday).toISOString();
       const endOfYesterday = endOfDay(yesterday).toISOString();
 
-      // Parallel queries for better performance
+      // Base query setup
+      let baseContacts = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('ativo', true).eq('owner_id', ownerId);
+      let baseConvPeriod = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startDate).lte('created_at', endDate);
+      let baseConvPrev = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
+      let baseMessages = supabase.from('messages').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startDate).lte('created_at', endDate);
+      let baseTicketsOpen = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).in('status', ['aberto_ia', 'em_analise', 'pendente']);
+      let baseTicketsResolvedPeriod = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startDate).lte('resolved_at', endDate);
+      let baseTicketsResolvedPrev = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startOfYesterday).lte('resolved_at', endOfYesterday);
+
+      if (agentId) {
+        baseConvPeriod = baseConvPeriod.eq('assigned_to', agentId);
+        baseConvPrev = baseConvPrev.eq('assigned_to', agentId);
+        baseTicketsOpen = baseTicketsOpen.eq('assigned_to', agentId);
+        baseTicketsResolvedPeriod = baseTicketsResolvedPeriod.eq('assigned_to', agentId);
+        baseTicketsResolvedPrev = baseTicketsResolvedPrev.eq('assigned_to', agentId);
+        // Messages and contacts might not have direct agent_id in some schemas, skipping for now unless confirmed
+      }
+
       const [
         contactsResult,
-        conversationsToday,
-        conversationsYesterday,
+        conversationsPeriod,
+        conversationsPrev,
         messagesResult,
         ticketsResult,
-        resolvedTicketsToday,
-        resolvedTicketsYesterday,
+        resolvedTicketsPeriod,
+        resolvedTicketsPrev,
       ] = await Promise.all([
-        // Total contacts
-        supabase
-          .from('contacts')
-          .select('id', { count: 'exact', head: true })
-          .eq('ativo', true),
-        
-        // Conversations today
-        supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .gte('created_at', startOfToday)
-          .lte('created_at', endOfToday),
-        
-        // Conversations yesterday
-        supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .gte('created_at', startOfYesterday)
-          .lte('created_at', endOfYesterday),
-        
-        // Total messages today
-        supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .gte('created_at', startOfToday),
-        
-        // Open tickets
-        supabase
-          .from('tickets')
-          .select('id', { count: 'exact', head: true })
-          .in('status', ['aberto_ia', 'em_analise', 'pendente']),
-        
-        // Resolved tickets today (status = concluido)
-        supabase
-          .from('tickets')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'concluido')
-          .gte('resolved_at', startOfToday),
-        
-        // Resolved tickets yesterday
-        supabase
-          .from('tickets')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'concluido')
-          .gte('resolved_at', startOfYesterday)
-          .lte('resolved_at', endOfYesterday),
+        baseContacts,
+        baseConvPeriod,
+        baseConvPrev,
+        baseMessages,
+        baseTicketsOpen,
+        baseTicketsResolvedPeriod,
+        baseTicketsResolvedPrev,
       ]);
 
-      // Calculate changes
-      const conversationsTodayCount = conversationsToday.count || 0;
-      const conversationsYesterdayCount = conversationsYesterday.count || 1; // Avoid division by zero
-      const conversationsChange = Math.round(
-        ((conversationsTodayCount - conversationsYesterdayCount) / conversationsYesterdayCount) * 100
-      );
+      const convCount = conversationsPeriod.count || 0;
+      const convPrevCount = conversationsPrev.count || 1;
+      const conversationsChange = Math.round(((convCount - convPrevCount) / convPrevCount) * 100);
 
-      const resolvedTodayCount = resolvedTicketsToday.count || 0;
-      const resolvedYesterdayCount = resolvedTicketsYesterday.count || 1;
-      const resolvedChange = Math.round(
-        ((resolvedTodayCount - resolvedYesterdayCount) / resolvedYesterdayCount) * 100
-      );
+      const resolvedCount = resolvedTicketsPeriod.count || 0;
+      const resolvedPrevCount = resolvedTicketsPrev.count || 1;
+      const resolvedChange = Math.round(((resolvedCount - resolvedPrevCount) / resolvedPrevCount) * 100);
 
       return {
         totalContacts: contactsResult.count || 0,
-        conversationsToday: conversationsTodayCount,
+        conversationsToday: convCount, // named today for compatibility with existing UI
         conversationsChange,
         messagesToday: messagesResult.count || 0,
         openTickets: ticketsResult.count || 0,
-        resolvedToday: resolvedTodayCount,
+        resolvedToday: resolvedCount,
         resolvedChange,
       };
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 };
 
 // Tickets by status for pie/bar chart
-export const useTicketsByStatus = () => {
+export const useTicketsByStatus = (filters?: { startDate?: string; endDate?: string; agentId?: string }) => {
   return useQuery({
-    queryKey: ['tickets-by-status'],
+    queryKey: ['tickets-by-status', filters],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('profiles').select('owner_id, id').eq('user_id', user?.id).single();
+      const ownerId = profile?.owner_id || profile?.id;
+
+      let query = supabase
         .from('tickets')
-        .select('status');
+        .select('status')
+        .eq('owner_id', ownerId);
+
+      if (filters?.startDate) query = query.gte('created_at', filters.startDate);
+      if (filters?.endDate) query = query.lte('created_at', filters.endDate);
+      if (filters?.agentId) query = query.eq('assigned_to', filters.agentId);
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -134,15 +128,19 @@ export const useTicketsByStatus = () => {
   });
 };
 
-// Messages over time (last 24 hours)
-export const useMessagesOverTime = () => {
+// Messages over time
+export const useMessagesOverTime = (filters?: { startDate?: string; endDate?: string; agentId?: string }) => {
   return useQuery({
-    queryKey: ['messages-over-time'],
+    queryKey: ['messages-over-time', filters],
     queryFn: async () => {
       const now = new Date();
       const hours: { hour: string; messages: number }[] = [];
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('profiles').select('owner_id, id').eq('user_id', user?.id).single();
+      const ownerId = profile?.owner_id || profile?.id;
 
-      // Get messages from last 12 hours
+      // For dynamic range, we'd need a more complex group by query. 
+      // Keeping the 12-hour view for now but adding owner_id scoping.
       for (let i = 11; i >= 0; i--) {
         const hourStart = startOfHour(subHours(now, i));
         const hourEnd = startOfHour(subHours(now, i - 1));
@@ -150,6 +148,7 @@ export const useMessagesOverTime = () => {
         const { count } = await supabase
           .from('messages')
           .select('id', { count: 'exact', head: true })
+          .eq('owner_id', ownerId)
           .gte('created_at', hourStart.toISOString())
           .lt('created_at', hourEnd.toISOString());
 
@@ -161,20 +160,29 @@ export const useMessagesOverTime = () => {
 
       return hours;
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 60000,
   });
 };
 
-// Campaigns summary with detailed metrics
-export const useCampaignsSummary = () => {
+// Campaigns summary
+export const useCampaignsSummary = (filters?: { startDate?: string; endDate?: string }) => {
   return useQuery({
-    queryKey: ['campaigns-summary'],
+    queryKey: ['campaigns-summary', filters],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('profiles').select('owner_id, id').eq('user_id', user?.id).single();
+      const ownerId = profile?.owner_id || profile?.id;
+
+      let query = supabase
         .from('campaigns')
         .select('status, enviados, entregues, falhas, lidos, respondidos')
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+
+      if (filters?.startDate) query = query.gte('created_at', filters.startDate);
+      if (filters?.endDate) query = query.lte('created_at', filters.endDate);
+
+      const { data, error } = await query.limit(20);
 
       if (error) throw error;
 
@@ -189,164 +197,97 @@ export const useCampaignsSummary = () => {
         totalFalhas: data?.reduce((acc, c) => acc + (c.falhas || 0), 0) || 0,
       };
 
-      // Calculate rates
-      const deliveryRate = summary.totalEnviados > 0 
-        ? Math.round((summary.totalEntregues / summary.totalEnviados) * 100) 
-        : 0;
-      const readRate = summary.totalEntregues > 0 
-        ? Math.round((summary.totalLidos / summary.totalEntregues) * 100) 
-        : 0;
-      const responseRate = summary.totalEntregues > 0 
-        ? Math.round((summary.totalRespondidos / summary.totalEntregues) * 100) 
-        : 0;
+      const deliveryRate = summary.totalEnviados > 0 ? Math.round((summary.totalEntregues / summary.totalEnviados) * 100) : 0;
+      const readRate = summary.totalEntregues > 0 ? Math.round((summary.totalLidos / summary.totalEntregues) * 100) : 0;
+      const responseRate = summary.totalEntregues > 0 ? Math.round((summary.totalRespondidos / summary.totalEntregues) * 100) : 0;
 
-      return {
-        ...summary,
-        deliveryRate,
-        readRate,
-        responseRate,
-      };
+      return { ...summary, deliveryRate, readRate, responseRate };
     },
     refetchInterval: 30000,
   });
 };
 
-// Recent activity (tickets, conversations, etc.)
-export const useRecentActivity = () => {
+// Recent activity
+export const useRecentActivity = (filters?: { agentId?: string }) => {
   return useQuery({
-    queryKey: ['recent-activity'],
+    queryKey: ['recent-activity', filters],
     queryFn: async () => {
-      // Get recent tickets
-      const { data: tickets } = await supabase
-        .from('tickets')
-        .select(`
-          id,
-          numero,
-          titulo,
-          status,
-          created_at,
-          resolved_at,
-          assigned_to,
-          profiles:assigned_to(nome)
-        `)
-        .order('updated_at', { ascending: false })
-        .limit(5);
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('profiles').select('owner_id, id').eq('user_id', user?.id).single();
+      const ownerId = profile?.owner_id || profile?.id;
 
-      // Get recent conversations
-      const { data: conversations } = await supabase
-        .from('conversations')
-        .select(`
-          id,
-          status,
-          created_at,
-          resolved_at,
-          contacts:contact_id(nome)
-        `)
-        .order('updated_at', { ascending: false })
-        .limit(5);
+      let ticketQuery = supabase.from('tickets').select('id, numero, titulo, status, created_at, resolved_at, assigned_to, profiles:assigned_to(nome)').eq('owner_id', ownerId);
+      let convQuery = supabase.from('conversations').select('id, status, created_at, resolved_at, assigned_to, contacts:contact_id(nome)').eq('owner_id', ownerId);
 
-      // Combine and sort by date
-      const activities: Array<{
-        id: string;
-        type: 'ticket_created' | 'ticket_resolved' | 'conversation_started' | 'conversation_resolved';
-        title: string;
-        subtitle: string;
-        timestamp: string;
-      }> = [];
+      if (filters?.agentId) {
+        ticketQuery = ticketQuery.eq('assigned_to', filters.agentId);
+        convQuery = convQuery.eq('assigned_to', filters.agentId);
+      }
 
-      tickets?.forEach((ticket) => {
-        if (ticket.status === 'concluido' && ticket.resolved_at) {
-          activities.push({
-            id: `ticket-resolved-${ticket.id}`,
-            type: 'ticket_resolved',
-            title: `Ticket #${ticket.numero} resolvido`,
-            subtitle: ticket.titulo,
-            timestamp: ticket.resolved_at,
-          });
-        } else {
-          activities.push({
-            id: `ticket-${ticket.id}`,
-            type: 'ticket_created',
-            title: `Novo ticket #${ticket.numero}`,
-            subtitle: ticket.titulo,
-            timestamp: ticket.created_at,
-          });
-        }
+      const [ticketsRes, convsRes] = await Promise.all([
+        ticketQuery.order('updated_at', { ascending: false }).limit(10),
+        convQuery.order('updated_at', { ascending: false }).limit(10)
+      ]);
+
+      const activities: any[] = [];
+      ticketsRes.data?.forEach((t: any) => {
+        activities.push({
+          id: `t-${t.id}`,
+          type: t.status === 'concluido' ? 'ticket_resolved' : 'ticket_created',
+          title: `${t.status === 'concluido' ? 'Resolvido: ' : 'Novo: '} #${t.numero}`,
+          subtitle: t.titulo,
+          timestamp: t.status === 'concluido' ? t.resolved_at : t.created_at,
+        });
+      });
+      convsRes.data?.forEach((c: any) => {
+        activities.push({
+          id: `c-${c.id}`,
+          type: c.status === 'resolvido' ? 'conversation_resolved' : 'conversation_started',
+          title: c.status === 'resolvido' ? 'Encerrada' : 'Iniciada',
+          subtitle: c.contacts?.nome || 'Contato',
+          timestamp: c.status === 'resolvido' ? c.resolved_at : c.created_at,
+        });
       });
 
-      conversations?.forEach((conv) => {
-        const contactName = (conv.contacts as any)?.nome || 'Contato';
-        if (conv.status === 'resolvido' && conv.resolved_at) {
-          activities.push({
-            id: `conv-resolved-${conv.id}`,
-            type: 'conversation_resolved',
-            title: 'Conversa encerrada',
-            subtitle: contactName,
-            timestamp: conv.resolved_at,
-          });
-        } else {
-          activities.push({
-            id: `conv-${conv.id}`,
-            type: 'conversation_started',
-            title: 'Nova conversa iniciada',
-            subtitle: contactName,
-            timestamp: conv.created_at,
-          });
-        }
-      });
-
-      // Sort by timestamp and take top 6
-      return activities
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 6);
+      return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 8);
     },
-    refetchInterval: 15000, // Refresh every 15 seconds
+    refetchInterval: 15000,
   });
 };
 
-// Active agents (profiles with recent activity)
+// Active agents
 export const useActiveAgents = () => {
   return useQuery({
     queryKey: ['active-agents'],
     queryFn: async () => {
-      // Get profiles that are assigned to active conversations
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('profiles').select('owner_id, id').eq('user_id', user?.id).single();
+      const ownerId = profile?.owner_id || profile?.id;
+
       const { data: conversations } = await supabase
         .from('conversations')
-        .select(`
-          assigned_to,
-          profiles:assigned_to(id, nome, ativo)
-        `)
+        .select('assigned_to, profiles:assigned_to(id, nome, ativo)')
+        .eq('owner_id', ownerId)
         .eq('status', 'ativo')
         .not('assigned_to', 'is', null);
 
-      // Count conversations per agent
       const agentCounts: Record<string, { nome: string; count: number }> = {};
-
-      conversations?.forEach((conv) => {
-        const profile = conv.profiles as any;
-        if (profile && profile.id) {
-          if (!agentCounts[profile.id]) {
-            agentCounts[profile.id] = { nome: profile.nome, count: 0 };
-          }
-          agentCounts[profile.id].count++;
+      conversations?.forEach((conv: any) => {
+        const p = conv.profiles;
+        if (p && p.id) {
+          if (!agentCounts[p.id]) agentCounts[p.id] = { nome: p.nome, count: 0 };
+          agentCounts[p.id].count++;
         }
       });
 
-      // Also get all active profiles
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, nome')
-        .eq('ativo', true)
-        .limit(6);
+      const { data: profiles } = await supabase.from('profiles').select('id, nome').eq('owner_id', ownerId).eq('ativo', true);
 
-      const agents = profiles?.map((profile) => ({
-        id: profile.id,
-        nome: profile.nome,
-        status: agentCounts[profile.id] ? 'online' : 'away',
-        activeChats: agentCounts[profile.id]?.count || 0,
+      return profiles?.map(p => ({
+        id: p.id,
+        nome: p.nome,
+        status: agentCounts[p.id] ? 'online' : 'away',
+        activeChats: agentCounts[p.id]?.count || 0
       })) || [];
-
-      return agents;
     },
     refetchInterval: 30000,
   });

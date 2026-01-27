@@ -25,180 +25,212 @@ export interface DashboardExportData {
     };
     ticketsByStatus: Array<{ name: string; value: number }>;
     activeAgents: Array<{ nome: string; activeChats: number }>;
+    filters?: {
+        startDate?: string;
+        endDate?: string;
+        agentName?: string;
+    };
 }
 
 export const exportDashboardToPDF = (data: DashboardExportData) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+    let y = 30;
 
-    // Header com logo e título
-    doc.setFontSize(24);
-    doc.setTextColor(59, 130, 246); // Primary blue
-    doc.text('FloxBee', 20, yPosition);
+    // Helpers
+    const addHeader = () => {
+        doc.setFillColor(59, 130, 246); // Primary Blue
+        doc.rect(0, 0, pageWidth, 25, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.text('FloxBee - Relatório Qualitativo', margin, 17);
+        y = 40;
+    };
 
-    yPosition += 10;
-    doc.setFontSize(18);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Relatório de Dashboard', 20, yPosition);
+    const addSectionTitle = (title: string) => {
+        if (y > pageHeight - 30) {
+            doc.addPage();
+            addHeader();
+        }
+        y += 5;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(59, 130, 246);
+        doc.text(title.toUpperCase(), margin, y);
+        y += 3;
+        doc.setDrawColor(59, 130, 246);
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, margin + 40, y);
+        y += 8;
+    };
 
-    yPosition += 5;
-    doc.setFontSize(10);
-    doc.setTextColor(128, 128, 128);
-    doc.text(
-        `Gerado em: ${format(new Date(), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}`,
-        20,
-        yPosition
-    );
+    const getStatusText = (rate: number, type: 'delivery' | 'read' | 'response') => {
+        if (type === 'delivery') return rate > 90 ? 'Excelente' : rate > 70 ? 'Bom' : 'Atenção';
+        if (type === 'read') return rate > 50 ? 'Excelente' : rate > 30 ? 'Bom' : 'Baixo';
+        return rate > 20 ? 'Excelente' : rate > 10 ? 'Bom' : 'Baixo';
+    };
 
-    // Line separator
-    yPosition += 5;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(20, yPosition, pageWidth - 20, yPosition);
-    yPosition += 10;
+    const addDataRow = (label: string, value: string | number, subValue?: string, xOffset = 0) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        doc.setTextColor(80, 80, 80);
+        doc.text(label, margin + xOffset, y);
 
-    // === KPIs Principais ===
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont(undefined, 'bold');
-    doc.text('📊 Métricas Principais', 20, yPosition);
-    yPosition += 8;
-
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(10);
-
-    const kpiData = [
-        ['Atendimentos Hoje', data.metrics.conversationsToday, `${data.metrics.conversationsChange >= 0 ? '+' : ''}${data.metrics.conversationsChange}% vs ontem`],
-        ['Mensagens Hoje', data.metrics.messagesToday, ''],
-        ['Tickets Abertos', data.metrics.openTickets, ''],
-        ['Resolvidos Hoje', data.metrics.resolvedToday, `${data.metrics.resolvedChange >= 0 ? '+' : ''}${data.metrics.resolvedChange}% vs ontem`],
-    ];
-
-    kpiData.forEach(([label, value, change]) => {
+        doc.setFont('helvetica', 'bold');
         doc.setTextColor(0, 0, 0);
-        doc.text(`${label}:`, 25, yPosition);
-        doc.setFont(undefined, 'bold');
-        doc.text(String(value), 100, yPosition);
-        doc.setFont(undefined, 'normal');
-        if (change) {
-            doc.setTextColor(128, 128, 128);
-            doc.text(change, 115, yPosition);
+        doc.text(String(value), margin + xOffset + 60, y);
+
+        if (subValue) {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(9);
+            doc.setTextColor(150, 150, 150);
+            doc.text(subValue, margin + xOffset + 85, y);
         }
-        yPosition += 6;
-    });
+        y += 7;
+    };
 
-    yPosition += 5;
+    const addKPICard = (title: string, value: string | number, change: number | null) => {
+        doc.setDrawColor(230, 230, 230);
+        doc.setFillColor(249, 250, 251);
+        doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'FD');
 
-    // === Resumo de Contatos ===
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont(undefined, 'bold');
-    doc.text('👥 Contatos', 20, yPosition);
-    yPosition += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(title, margin + 5, y + 8);
 
-    doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(0, 0, 0);
+        doc.text(String(value), margin + 5, y + 16);
+
+        if (change !== null) {
+            doc.setFontSize(9);
+            const isPos = change >= 0;
+            doc.setTextColor(isPos ? 34 : 220, isPos ? 197 : 38, isPos ? 94 : 38);
+            doc.text(`${isPos ? '+' : ''}${change}% vs ontem`, margin + contentWidth - 40, y + 12);
+        }
+        y += 25;
+    };
+
+    // Build Document
+    addHeader();
+
+    // Intro Metadata
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Período de Análise: Hoje (${format(new Date(), 'dd/MM/yyyy')})`, margin, 32);
+    doc.text(`Identificador: ${format(new Date(), 'yyyyMMdd-HHmm')}`, pageWidth - margin - 50, 32);
+
+    // --- ANALYTICAL INSIGHTS ---
+    addSectionTitle('RESUMO ANALÍTICO');
+
+    // Add Period Info
     doc.setFontSize(10);
-    doc.text(`Total de Contatos Cadastrados: ${data.metrics.totalContacts}`, 25, yPosition);
-    yPosition += 10;
+    doc.setTextColor(100, 100, 100);
+    const startStr = data.filters?.startDate ? format(new Date(data.filters.startDate), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy');
+    const endStr = data.filters?.endDate ? format(new Date(data.filters.endDate), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy');
+    const agentStr = data.filters?.agentName ? ` | Atendente: ${data.filters.agentName}` : '';
+    doc.text(`Período: ${startStr} - ${endStr}${agentStr}`, margin, y);
+    y += 10;
 
-    // === Campanhas ===
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('📢 Campanhas', 20, yPosition);
-    yPosition += 8;
-
-    doc.setFont(undefined, 'normal');
     doc.setFontSize(10);
+    doc.setTextColor(50, 50, 50);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Performance Geral:', margin + 5, y);
+    doc.setFont('helvetica', 'normal');
 
-    const campaignMetrics = [
-        ['Campanhas Concluídas', data.campaignsSummary.concluidas],
-        ['Mensagens Enviadas', data.campaignsSummary.totalEnviados],
-        ['Mensagens Entregues', data.campaignsSummary.totalEntregues],
-        ['Mensagens Lidas', data.campaignsSummary.totalLidos],
-        ['Mensagens Respondidas', data.campaignsSummary.totalRespondidos],
-        ['Falhas', data.campaignsSummary.totalFalhas],
+    const deliveryStatus = getStatusText(data.campaignsSummary.deliveryRate, 'delivery');
+    const readStatus = getStatusText(data.campaignsSummary.readRate, 'read');
+
+    const insightText = `O sistema apresenta uma eficiência de entrega de ${data.campaignsSummary.deliveryRate}% (${deliveryStatus}). ` +
+        `A taxa de abertura está em ${data.campaignsSummary.readRate}% (${readStatus}). ` +
+        `Até o momento, foram processadas ${data.metrics.conversationsToday} novas conversas hoje.`;
+
+    const splitInsight = doc.splitTextToSize(insightText, contentWidth - 10);
+    doc.text(splitInsight, margin + 5, y + 6);
+    y += (splitInsight.length * 5) + 12;
+
+    addSectionTitle('DESEMPENHO OPERACIONAL');
+    addKPICard('Aberturas Hoje', data.metrics.conversationsToday, data.metrics.conversationsChange);
+    addKPICard('Resolvidos Hoje', data.metrics.resolvedToday, data.metrics.resolvedChange);
+
+    y += 2;
+    addDataRow('Volume de Mensagens:', data.metrics.messagesToday);
+    addDataRow('Tickets Pendentes:', data.metrics.openTickets);
+    addDataRow('Base de Contatos:', data.metrics.totalContacts);
+
+    y += 10;
+    addSectionTitle('EFICIÊNCIA DE CAMPANHAS');
+
+    // Campanha Table Style
+    doc.setFillColor(59, 130, 246);
+    doc.rect(margin, y, contentWidth, 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text('MÉTRICA', margin + 5, y + 5);
+    doc.text('VALOR', margin + 80, y + 5);
+    doc.text('STATUS / TAXA', margin + 130, y + 5);
+    y += 13;
+
+    doc.setTextColor(50, 50, 50);
+    const campRows = [
+        ['Mensagens Enviadas', data.campaignsSummary.totalEnviados, '-'],
+        ['Sucesso de Entrega', data.campaignsSummary.totalEntregues, `${data.campaignsSummary.deliveryRate}% (${deliveryStatus})`],
+        ['Taxa de Leitura', data.campaignsSummary.totalLidos, `${data.campaignsSummary.readRate}% (${readStatus})`],
+        ['Taxa de Resposta', data.campaignsSummary.totalRespondidos, `${data.campaignsSummary.responseRate}%`],
+        ['Insucesso (Falhas)', data.campaignsSummary.totalFalhas, `${Math.round((data.campaignsSummary.totalFalhas / (data.campaignsSummary.totalEnviados || 1)) * 100)}%`]
     ];
 
-    campaignMetrics.forEach(([label, value]) => {
-        doc.text(`${label}:`, 25, yPosition);
-        doc.setFont(undefined, 'bold');
-        doc.text(String(value), 100, yPosition);
-        doc.setFont(undefined, 'normal');
-        yPosition += 6;
+    campRows.forEach(([label, val, perc]) => {
+        doc.setFont('helvetica', 'normal');
+        doc.text(String(label), margin + 5, y);
+        doc.text(String(val), margin + 80, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(perc), margin + 130, y);
+        y += 7;
     });
 
-    yPosition += 5;
-
-    // Taxas
-    doc.setTextColor(59, 130, 246);
-    doc.text(`Taxa de Entrega: ${data.campaignsSummary.deliveryRate}%`, 25, yPosition);
-    yPosition += 5;
-    doc.text(`Taxa de Leitura: ${data.campaignsSummary.readRate}%`, 25, yPosition);
-    yPosition += 5;
-    doc.text(`Taxa de Resposta: ${data.campaignsSummary.responseRate}%`, 25, yPosition);
-    yPosition += 10;
-
-    // === Tickets por Status ===
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('🎫 Tickets por Status', 20, yPosition);
-    yPosition += 8;
-
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(10);
-
-    data.ticketsByStatus.forEach(ticket => {
-        if (ticket.value > 0) {
-            doc.text(`${ticket.name}:`, 25, yPosition);
-            doc.setFont(undefined, 'bold');
-            doc.text(String(ticket.value), 70, yPosition);
-            doc.setFont(undefined, 'normal');
-            yPosition += 6;
-        }
+    y += 5;
+    addSectionTitle('FUNIL DE TICKETS');
+    const ticketXStart = margin + 5;
+    data.ticketsByStatus.forEach((t, i) => {
+        const col = i % 2;
+        if (col === 0 && i > 0) y += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${t.name}:`, ticketXStart + (col * 80), y);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(t.value), ticketXStart + (col * 80) + 30, y);
     });
+    y += 12;
 
-    yPosition += 5;
-
-    // === Atendentes Ativos ===
-    if (yPosition > pageHeight - 60) {
-        doc.addPage();
-        yPosition = 20;
-    }
-
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('👤 Atendentes', 20, yPosition);
-    yPosition += 8;
-
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(10);
-
+    addSectionTitle('EQUIPE E ATENDENTES');
     if (data.activeAgents.length > 0) {
         data.activeAgents.forEach(agent => {
-            doc.text(`${agent.nome}:`, 25, yPosition);
-            doc.text(`${agent.activeChats} chats ativos`, 100, yPosition);
-            yPosition += 6;
+            if (y > pageHeight - 15) { doc.addPage(); addHeader(); y = 40; }
+            addDataRow(agent.nome, agent.activeChats, 'chats ativos');
         });
     } else {
-        doc.setTextColor(128, 128, 128);
-        doc.text('Nenhum atendente ativo no momento', 25, yPosition);
+        doc.text('Nenhum registro de atividade de agentes recente.', margin + 5, y);
     }
 
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128);
-    doc.text(
-        `FloxBee - Sistema de Atendimento | Página 1`,
-        pageWidth / 2,
-        pageHeight - 10,
-        { align: 'center' }
-    );
+    // Footer footer
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(180, 180, 180);
+        doc.text(`Relatório FloxBee - Confidencial | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+    }
 
-    // Save PDF
-    const fileName = `dashboard_${format(new Date(), 'yyyy-MM-dd_HHmm')}.pdf`;
+    const fileName = `Relatorio_FloxBee_${format(new Date(), 'yyyy-MM-dd_HHmm')}.pdf`;
     doc.save(fileName);
-
     return fileName;
 };

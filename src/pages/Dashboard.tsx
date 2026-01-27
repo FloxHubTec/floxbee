@@ -14,10 +14,22 @@ import {
   Eye,
   MessageCircle,
   BarChart3,
-  Download
+  Download,
+  Calendar,
+  Filter,
+  User,
+  X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   LineChart,
   Line,
@@ -46,14 +58,40 @@ import {
 } from '@/hooks/useDashboard';
 import { exportDashboardToPDF } from '@/lib/exportPDF';
 import { toast } from 'sonner';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 const Dashboard: React.FC = () => {
-  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
-  const { data: ticketsByStatus = [] } = useTicketsByStatus();
-  const { data: messagesOverTime = [] } = useMessagesOverTime();
-  const { data: recentActivity = [] } = useRecentActivity();
+  const [dateRange, setDateRange] = React.useState({
+    from: startOfDay(new Date()).toISOString(),
+    to: endOfDay(new Date()).toISOString(),
+  });
+  const [selectedAgent, setSelectedAgent] = React.useState<string>('all');
+
+  const filters = {
+    startDate: dateRange.from,
+    endDate: dateRange.to,
+    agentId: selectedAgent === 'all' ? undefined : selectedAgent,
+  };
+
+  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics(filters);
+  const { data: ticketsByStatus = [] } = useTicketsByStatus(filters);
+  const { data: messagesOverTime = [] } = useMessagesOverTime(filters);
+  const { data: recentActivity = [] } = useRecentActivity({ agentId: filters.agentId });
   const { data: activeAgents = [] } = useActiveAgents();
-  const { data: campaignsSummary } = useCampaignsSummary();
+  const { data: campaignsSummary } = useCampaignsSummary({ startDate: filters.startDate, endDate: filters.endDate });
+
+  const handleDateChange = (type: 'from' | 'to', value: string) => {
+    const date = type === 'from' ? startOfDay(new Date(value)) : endOfDay(new Date(value));
+    setDateRange(prev => ({ ...prev, [type]: date.toISOString() }));
+  };
+
+  const clearFilters = () => {
+    setDateRange({
+      from: startOfDay(new Date()).toISOString(),
+      to: endOfDay(new Date()).toISOString(),
+    });
+    setSelectedAgent('all');
+  };
 
   const handleExportPDF = () => {
     if (!metrics || !campaignsSummary) {
@@ -67,6 +105,11 @@ const Dashboard: React.FC = () => {
         campaignsSummary,
         ticketsByStatus,
         activeAgents,
+        filters: {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          agentName: selectedAgent !== 'all' ? activeAgents.find(a => a.id === selectedAgent)?.nome : undefined,
+        }
       });
       toast.success(`Dashboard exportado: ${fileName}`);
     } catch (error) {
@@ -152,6 +195,53 @@ const Dashboard: React.FC = () => {
             <span>Última atualização: {new Date().toLocaleTimeString('pt-BR')}</span>
           </div>
         </div>
+      </div>
+
+      {/* Filters Bar */}
+      <div className="bg-card border border-border rounded-xl p-4 mb-6 flex flex-wrap items-end gap-4 shadow-sm">
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> Data Inicial
+          </label>
+          <Input
+            type="date"
+            value={dateRange.from.split('T')[0]}
+            onChange={(e) => handleDateChange('from', e.target.value)}
+            className="h-9"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> Data Final
+          </label>
+          <Input
+            type="date"
+            value={dateRange.to.split('T')[0]}
+            onChange={(e) => handleDateChange('to', e.target.value)}
+            className="h-9"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1">
+            <User className="w-3 h-3" /> Filtrar por Atendente
+          </label>
+          <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Todos os Atendentes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Atendentes</SelectItem>
+              {activeAgents.map(agent => (
+                <SelectItem key={agent.id} value={agent.id}>{agent.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {(selectedAgent !== 'all' || dateRange.from.split('T')[0] !== new Date().toISOString().split('T')[0]) && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-muted-foreground hover:text-foreground gap-1">
+            <X className="w-4 h-4" /> Limpar
+          </Button>
+        )}
       </div>
 
       {/* KPI Cards */}
