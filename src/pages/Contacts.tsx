@@ -195,11 +195,8 @@ const Contacts: React.FC = () => {
 
   const formatWhatsApp = (whatsapp: string) => {
     if (!whatsapp) return "-";
-    const cleaned = whatsapp.replace(/\D/g, "");
-    if (cleaned.length === 13) {
-      return `+${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
-    }
-    return whatsapp;
+    // Retorna apenas os dígitos conforme solicitado pelo usuário
+    return whatsapp.replace(/\D/g, "");
   };
 
   return (
