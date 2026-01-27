@@ -81,7 +81,14 @@ export const useContacts = () => {
       toast.success("Contato criado com sucesso!");
     },
     onError: (error: any) => {
-      toast.error("Erro ao criar contato: " + error.message);
+      if (error?.code === "42501" && error?.message?.includes("row-level security")) {
+        toast.error(
+          "Não foi possível adicionar o contato devido à política de segurança da tabela (RLS). " +
+          "Verifique se você tem permissão ou se o contato está vinculado a outros dados (departamento, proprietário, etc)."
+        );
+      } else {
+        toast.error("Erro ao criar contato: " + (error.message || "Erro desconhecido"));
+      }
     },
   });
 

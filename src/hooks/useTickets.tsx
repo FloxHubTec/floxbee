@@ -2,6 +2,7 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 type Ticket = Database["public"]["Tables"]["tickets"]["Row"];
 type Contact = Database["public"]["Tables"]["contacts"]["Row"];
@@ -12,7 +13,6 @@ export interface TicketWithRelations extends Ticket {
   assignee_profile: Profile | null;
 }
 
-// SLA em horas baseado na prioridade
 const SLA_HOURS: Record<string, number> = {
   urgente: 4,
   alta: 8,
@@ -47,26 +47,15 @@ export const useTickets = () => {
     },
   });
 
-  // Realtime subscription
   React.useEffect(() => {
     const channel = supabase
       .channel('tickets-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tickets',
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['tickets'] });
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
   return query;
@@ -77,7 +66,6 @@ export const useTicket = (ticketId: string | null) => {
     queryKey: ["ticket", ticketId],
     queryFn: async () => {
       if (!ticketId) return null;
-
       const { data, error } = await supabase
         .from("tickets")
         .select(`
@@ -95,6 +83,7 @@ export const useTicket = (ticketId: string | null) => {
   });
 };
 
+// --- CRIAÇÃO DE TICKET ---
 export const useCreateTicket = () => {
   const queryClient = useQueryClient();
 
@@ -103,11 +92,13 @@ export const useCreateTicket = () => {
       titulo: string;
       descricao?: string;
       prioridade?: "baixa" | "media" | "alta" | "urgente";
-      contact_id?: string;
-      assigned_to?: string;
+      contact_id?: string | null;
+      assigned_to?: string | null;
+      department_id?: string | null; // Tipagem simples
     }) => {
       const prioridade = ticket.prioridade || "media";
-      const slaDeadline = calculateSLADeadline(prioridade);
+      
+      console.log("Criando Ticket - Payload:", ticket); // Debug: Verifique no console se department_id tem valor
 
       const { data, error } = await supabase
         .from("tickets")
@@ -115,78 +106,66 @@ export const useCreateTicket = () => {
           titulo: ticket.titulo,
           descricao: ticket.descricao,
           prioridade: prioridade,
-          contact_id: ticket.contact_id || null,
-          assigned_to: ticket.assigned_to || null,
+          contact_id: ticket.contact_id,
+          assigned_to: ticket.assigned_to,
+          department_id: ticket.department_id, // Envia direto o que recebeu
           status: ticket.assigned_to ? "em_analise" : "aberto_ia",
+          sla_deadline: calculateSLADeadline(prioridade)
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro Supabase Create:", error);
+        throw error;
+      }
 
-      // Send ticket notification if contact exists
       if (ticket.contact_id) {
         try {
           await supabase.functions.invoke("ticket-notification", {
-            body: {
-              ticket_id: data.id,
-              event_type: "created",
-            },
+            body: { ticket_id: data.id, event_type: "created" },
           });
-        } catch (notifError) {
-          console.error("Error sending ticket notification:", notifError);
-        }
+        } catch (e) { console.error(e); }
       }
-
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      toast.success("Ticket criado com sucesso!");
     },
+    onError: (error) => {
+      toast.error("Erro ao criar ticket: " + error.message);
+    }
   });
 };
 
-// Helper function to log ticket history
 const logTicketHistory = async (params: {
   ticketId: string;
-  oldStatus?: string;
-  newStatus?: string;
-  oldPriority?: string;
-  newPriority?: string;
-  oldAssignedTo?: string;
-  newAssignedTo?: string;
+  oldStatus?: string; newStatus?: string;
+  oldPriority?: string; newPriority?: string;
+  oldAssignedTo?: string; newAssignedTo?: string;
   note?: string;
 }) => {
   const { data: { user } } = await supabase.auth.getUser();
-
-  // Get profile ID
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('user_id', user?.id)
-    .single();
+  if (!user) return;
+  const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
 
   await supabase.from("ticket_history").insert({
     ticket_id: params.ticketId,
     created_by: profile?.id,
-    old_status: params.oldStatus,
-    new_status: params.newStatus,
-    old_priority: params.oldPriority,
-    new_priority: params.newPriority,
-    old_assigned_to: params.oldAssignedTo,
-    new_assigned_to: params.newAssignedTo,
+    old_status: params.oldStatus, new_status: params.newStatus,
+    old_priority: params.oldPriority, new_priority: params.newPriority,
+    old_assigned_to: params.oldAssignedTo, new_assigned_to: params.newAssignedTo,
     note: params.note,
   });
 };
 
+// --- ATUALIZAÇÃO DE TICKET ---
 export const useUpdateTicket = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      ticketId,
-      data,
-    }: {
+    mutationFn: async ({ ticketId, data }: {
       ticketId: string;
       data: {
         titulo: string;
@@ -194,16 +173,16 @@ export const useUpdateTicket = () => {
         prioridade?: "baixa" | "media" | "alta" | "urgente";
         contact_id?: string | null;
         assigned_to?: string | null;
+        department_id?: string | null;
       };
     }) => {
-      const updateData: Record<string, unknown> = { ...data };
+      console.log("Atualizando Ticket - Payload:", data); // Debug
 
-      // Recalculate SLA if priority changed
+      const updateData: any = { ...data };
+      
       if (data.prioridade) {
         updateData.sla_deadline = calculateSLADeadline(data.prioridade);
       }
-
-      // If assigning to someone, move to em_analise
       if (data.assigned_to) {
         updateData.status = "em_analise";
       }
@@ -221,22 +200,25 @@ export const useUpdateTicket = () => {
 
       if (error) throw error;
 
-      // Log history
       await logTicketHistory({
         ticketId,
         oldStatus: oldTicket?.status,
-        newStatus: updateData.status as string || oldTicket?.status,
+        newStatus: updateData.status || oldTicket?.status,
         oldPriority: oldTicket?.prioridade,
-        newPriority: (data.prioridade as string) || oldTicket?.prioridade,
+        newPriority: data.prioridade || oldTicket?.prioridade,
         oldAssignedTo: oldTicket?.assigned_to,
-        newAssignedTo: (data.assigned_to as string) || oldTicket?.assigned_to,
+        newAssignedTo: data.assigned_to || oldTicket?.assigned_to,
         note: "Dados do ticket atualizados",
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tickets"] });
       queryClient.invalidateQueries({ queryKey: ["ticket"] });
+      toast.success("Ticket atualizado!");
     },
+    onError: (error) => {
+      toast.error("Erro ao atualizar: " + error.message);
+    }
   });
 };
 
@@ -244,67 +226,34 @@ export const useUpdateTicketStatus = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      ticketId,
-      status,
-      assignedTo,
-      oldStatus,
-      contactId,
-    }: {
+    mutationFn: async ({ ticketId, status, assignedTo, oldStatus, contactId }: {
       ticketId: string;
       status: "aberto_ia" | "em_analise" | "pendente" | "concluido";
-      assignedTo?: string;
-      oldStatus?: string;
-      contactId?: string;
+      assignedTo?: string; oldStatus?: string; contactId?: string;
     }) => {
-      const updateData: Record<string, unknown> = { status };
+      const updateData: any = { status };
+      if (assignedTo !== undefined) updateData.assigned_to = assignedTo;
+      if (status === "concluido") updateData.resolved_at = new Date().toISOString();
 
-      if (assignedTo !== undefined) {
-        updateData.assigned_to = assignedTo;
-      }
-
-      if (status === "concluido") {
-        updateData.resolved_at = new Date().toISOString();
-      }
-
-      const { data: oldTicket } = await supabase
-        .from("tickets")
-        .select("status, assigned_to")
-        .eq("id", ticketId)
-        .single();
-
-      const { error } = await supabase
-        .from("tickets")
-        .update(updateData)
-        .eq("id", ticketId);
+      const { data: oldTicket } = await supabase.from("tickets").select("status, assigned_to").eq("id", ticketId).single();
+      const { error } = await supabase.from("tickets").update(updateData).eq("id", ticketId);
 
       if (error) throw error;
 
-      // Log history
       await logTicketHistory({
         ticketId,
-        oldStatus: oldTicket?.status,
-        newStatus: status,
-        oldAssignedTo: oldTicket?.assigned_to,
-        newAssignedTo: assignedTo || oldTicket?.assigned_to,
+        oldStatus: oldTicket?.status, newStatus: status,
+        oldAssignedTo: oldTicket?.assigned_to, newAssignedTo: assignedTo || oldTicket?.assigned_to,
         note: `Status alterado de ${oldTicket?.status} para ${status}`,
       });
 
-      // Send notification for status change
       if (oldStatus && oldStatus !== status && contactId) {
         try {
           const eventType = status === "concluido" ? "resolved" : "updated";
           await supabase.functions.invoke("ticket-notification", {
-            body: {
-              ticket_id: ticketId,
-              event_type: eventType,
-              old_status: oldStatus,
-              new_status: status,
-            },
+            body: { ticket_id: ticketId, event_type: eventType, old_status: oldStatus, new_status: status },
           });
-        } catch (notifError) {
-          console.error("Error sending ticket notification:", notifError);
-        }
+        } catch (e) { console.error(e); }
       }
     },
     onSuccess: () => {
@@ -315,46 +264,23 @@ export const useUpdateTicketStatus = () => {
 
 export const useAssignTicket = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async ({
-      ticketId,
-      assignedTo,
-    }: {
-      ticketId: string;
-      assignedTo: string;
-    }) => {
-      const { error } = await supabase
-        .from("tickets")
-        .update({
-          assigned_to: assignedTo,
-          status: "em_analise",
-        })
-        .eq("id", ticketId);
-
+    mutationFn: async ({ ticketId, assignedTo }: { ticketId: string; assignedTo: string }) => {
+      const { error } = await supabase.from("tickets").update({ assigned_to: assignedTo, status: "em_analise" }).eq("id", ticketId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tickets"] });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tickets"] }); },
   });
 };
 
 export const useDeleteTicket = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (ticketId: string) => {
-      const { error } = await supabase
-        .from("tickets")
-        .delete()
-        .eq("id", ticketId);
-
+      const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tickets"] });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tickets"] }); toast.success("Ticket excluído!"); },
   });
 };
 
@@ -362,11 +288,7 @@ export const useAgentes = () => {
   return useQuery({
     queryKey: ["agentes"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("ativo", true);
-
+      const { data, error } = await supabase.from("profiles").select("*").eq("ativo", true);
       if (error) throw error;
       return data;
     },
@@ -377,12 +299,7 @@ export const useContacts = () => {
   return useQuery({
     queryKey: ["contacts-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, nome")
-        .eq("ativo", true)
-        .order("nome");
-
+      const { data, error } = await supabase.from("contacts").select("id, nome").eq("ativo", true).order("nome");
       if (error) throw error;
       return data;
     },
@@ -396,10 +313,7 @@ export const useTicketHistory = (ticketId: string | null) => {
       if (!ticketId) return [];
       const { data, error } = await supabase
         .from("ticket_history")
-        .select(`
-          *,
-          created_by_profile:profiles!ticket_history_created_by_fkey(nome)
-        `)
+        .select(`*, created_by_profile:profiles!ticket_history_created_by_fkey(nome)`)
         .eq("ticket_id", ticketId)
         .order("created_at", { ascending: false });
 

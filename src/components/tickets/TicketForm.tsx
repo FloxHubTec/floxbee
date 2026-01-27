@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useActiveDepartments } from "@/hooks/useDepartments";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,12 +36,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
+// Schema flexível para department_id
 const ticketSchema = z.object({
   titulo: z.string().min(3, "Título deve ter pelo menos 3 caracteres"),
   descricao: z.string().optional(),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
   contact_id: z.string().optional(),
   assigned_to: z.string().optional(),
+  // Permite string (UUID), undefined ou null
+  department_id: z.string().optional().nullable().or(z.literal("")),
 });
 
 export type TicketFormValues = z.infer<typeof ticketSchema>;
@@ -48,15 +52,13 @@ export type TicketFormValues = z.infer<typeof ticketSchema>;
 interface TicketFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: TicketFormValues) => Promise<void>;
+  onSubmit: (data: any) => Promise<void>;
   isLoading?: boolean;
   ticket?: TicketWithRelations | null;
   contacts?: Array<{ id: string; nome: string }>;
   agentes?: Array<{ id: string; nome: string }>;
 }
 
-
-// SLA em horas baseado na prioridade
 const SLA_HOURS = {
   urgente: 4,
   alta: 8,
@@ -75,6 +77,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
 }) => {
   const isEditing = !!ticket;
   const { data: history, isLoading: isLoadingHistory } = useTicketHistory(ticket?.id || null);
+  const { data: departamentos = [] } = useActiveDepartments ? useActiveDepartments() : { data: [] };
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
@@ -82,7 +85,9 @@ export const TicketForm: React.FC<TicketFormProps> = ({
       em_atendimento: "Em Atendimento",
       pendente: "Pendente",
       resolvido: "Resolvido",
-      cancelado: "Cancelado"
+      cancelado: "Cancelado",
+      em_analise: "Em Análise",
+      aberto_ia: "Aberto (IA)"
     };
     return labels[status] || status;
   };
@@ -105,6 +110,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
       prioridade: "media",
       contact_id: "",
       assigned_to: "",
+      department_id: "", // String vazia inicial
     },
   });
 
@@ -114,9 +120,11 @@ export const TicketForm: React.FC<TicketFormProps> = ({
       form.reset({
         titulo: ticket.titulo,
         descricao: ticket.descricao || "",
-        prioridade: ticket.prioridade,
+        prioridade: (ticket.prioridade as "baixa" | "media" | "alta" | "urgente") || "media",
         contact_id: ticket.contact_id || "",
         assigned_to: ticket.assigned_to || "",
+        // Converte null do banco para "" do form
+        department_id: ticket.department_id || "", 
       });
     } else {
       form.reset({
@@ -125,21 +133,48 @@ export const TicketForm: React.FC<TicketFormProps> = ({
         prioridade: "media",
         contact_id: "",
         assigned_to: "",
+        department_id: "",
       });
     }
   }, [ticket, form]);
 
   const handleSubmit = async (data: TicketFormValues) => {
-    await onSubmit(data);
-    form.reset();
+    // Tratamento explícito: Converte vazio/"__none__" para NULL, senão usa o valor string (UUID)
+    const deptId = (!data.department_id || data.department_id === "" || data.department_id === "__none__") 
+        ? null 
+        : data.department_id;
+
+    const contactId = (!data.contact_id || data.contact_id === "" || data.contact_id === "__none__") 
+        ? null 
+        : data.contact_id;
+
+    const assignedTo = (!data.assigned_to || data.assigned_to === "" || data.assigned_to === "__none__") 
+        ? null 
+        : data.assigned_to;
+
+    const formattedData = {
+      ...data,
+      department_id: deptId,
+      contact_id: contactId,
+      assigned_to: assignedTo,
+    };
+    
+    // Debug: Veja no console do navegador se 'department_id' é um UUID válido ou null
+    console.log("Formulário enviando:", formattedData);
+    
+    await onSubmit(formattedData);
+    
+    if (!isEditing) {
+        form.reset();
+    }
   };
 
   const selectedPriority = form.watch("prioridade");
-  const slaHours = SLA_HOURS[selectedPriority];
+  const slaHours = SLA_HOURS[selectedPriority || "media"];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? `Editar Ticket #${ticket.numero}` : "Novo Ticket"}
@@ -217,7 +252,10 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Contato</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)} value={field.value || "__none__"}>
+                      <Select 
+                        onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)} 
+                        value={field.value || "__none__"} 
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Vincular contato" />
@@ -245,7 +283,10 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Atribuir para</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)} value={field.value || "__none__"}>
+                      <Select 
+                        onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)} 
+                        value={field.value || "__none__"} 
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione agente" />
@@ -265,6 +306,37 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                   )}
                 />
               )}
+
+              {/* CAMPO DE DEPARTAMENTO */}
+              <FormField
+                control={form.control}
+                name="department_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Departamento</FormLabel>
+                    <Select 
+                      onValueChange={(val) => {
+                        // Quando seleciona, salva o UUID ou string vazia
+                        field.onChange(val === "__none__" ? "" : val);
+                      }} 
+                      value={field.value || "__none__"} // Se null/vazio, mostra "Nenhum"
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione departamento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__none__">Nenhum</SelectItem>
+                        {departamentos.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
@@ -291,7 +363,6 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                 <HistoryIcon className="w-4 h-4" />
                 Histórico de Interações
               </div>
-
               <ScrollArea className="h-[200px] rounded-md border p-4">
                 {isLoadingHistory ? (
                   <div className="flex justify-center p-4">

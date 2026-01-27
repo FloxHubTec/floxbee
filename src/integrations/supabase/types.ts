@@ -514,6 +514,7 @@ export type Database = {
           status: string | null
           titulo: string
           updated_at: string | null
+          department_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -529,6 +530,7 @@ export type Database = {
           status?: string | null
           titulo: string
           updated_at?: string | null
+          department_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -544,6 +546,7 @@ export type Database = {
           status?: string | null
           titulo?: string
           updated_at?: string | null
+          department_id?: string | null
         }
         Relationships: [
           {

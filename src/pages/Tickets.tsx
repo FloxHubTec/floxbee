@@ -65,6 +65,7 @@ import {
   useContacts,
   type TicketWithRelations
 } from '@/hooks/useTickets';
+import { useActiveDepartments } from '@/hooks/useDepartments';
 import { TicketForm, type TicketFormValues } from '@/components/tickets/TicketForm';
 import { TicketFilterPopover, type TicketFilters } from '@/components/tickets/TicketFilterPopover';
 import { toast } from 'sonner';
@@ -171,7 +172,7 @@ const TicketCard: React.FC<TicketCardProps> = ({
                   <MoreHorizontal className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(ticket); }}>
                   <Edit className="w-4 h-4 mr-2" />
                   Editar
@@ -262,11 +263,15 @@ const Tickets: React.FC = () => {
   const [ticketToDelete, setTicketToDelete] = useState<string | null>(null);
 
   // Estado de filtros
-  const [filters, setFilters] = useState<TicketFilters>({
+  const [filters, setFilters] = useState<TicketFilters & { departamento: string }>({
     prioridade: 'all',
     agente: 'all',
     sla: 'all',
+    departamento: 'all',
   });
+
+  // Buscar departamentos ativos
+  const { data: departamentos = [] } = useActiveDepartments ? useActiveDepartments() : { data: [] };
 
   // Estado de ordenação por coluna
   const [columnSort, setColumnSort] = useState<Record<string, 'priority' | 'sla' | 'date' | 'name'>>({});
@@ -324,6 +329,11 @@ const Tickets: React.FC = () => {
         if (filters.sla !== 'all') {
           const slaStatus = getSLAStatus(ticket);
           if (slaStatus !== filters.sla) return false;
+        }
+
+        // Filtro de departamento
+        if (filters.departamento !== 'all') {
+          if ((ticket as any).department_id !== filters.departamento) return false;
         }
 
         return true;
@@ -392,33 +402,19 @@ const Tickets: React.FC = () => {
     setEditingTicket(null);
   };
 
-  const handleSubmitForm = async (data: TicketFormValues) => {
+  const handleSubmitForm = async (data: any) => { // Recebe 'any' pois já vem formatado do TicketForm
     try {
       if (editingTicket) {
         await updateTicket.mutateAsync({
           ticketId: editingTicket.id,
-          data: {
-            titulo: data.titulo,
-            descricao: data.descricao,
-            prioridade: data.prioridade,
-            contact_id: data.contact_id || null,
-            assigned_to: data.assigned_to || null,
-          },
+          data
         });
-        toast.success('Ticket atualizado com sucesso');
       } else {
-        await createTicket.mutateAsync({
-          titulo: data.titulo,
-          descricao: data.descricao,
-          prioridade: data.prioridade,
-          contact_id: data.contact_id,
-          assigned_to: data.assigned_to,
-        });
-        toast.success('Ticket criado com sucesso');
+        await createTicket.mutateAsync(data);
       }
       handleCloseForm();
     } catch (error) {
-      toast.error(editingTicket ? 'Erro ao atualizar ticket' : 'Erro ao criar ticket');
+      console.error("Erro ao salvar:", error);
     }
   };
 
@@ -483,6 +479,18 @@ const Tickets: React.FC = () => {
               onFiltersChange={setFilters}
               agentes={agentes.map(a => ({ id: a.id, nome: a.nome }))}
             />
+            <div className="min-w-[180px]">
+              <select
+                className="border rounded px-2 py-1 text-sm bg-secondary"
+                value={filters.departamento}
+                onChange={e => setFilters({ ...filters, departamento: e.target.value })}
+              >
+                <option value="all">Todos departamentos</option>
+                {departamentos.map((dept: any) => (
+                  <option key={dept.id} value={dept.id}>{dept.name}</option>
+                ))}
+              </select>
+            </div>
             <Button className="gap-2" onClick={() => handleOpenForm()}>
               <Plus className="w-4 h-4" />
               Novo Ticket
