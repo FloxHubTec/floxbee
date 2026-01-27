@@ -43,6 +43,7 @@ const automationSchema = z.object({
   trigger_type: z.string(),
   keywords: z.string().optional(),
   delay_minutes: z.number().optional(),
+  max_attempts: z.number().optional(),
   business_hours_start: z.string().optional(),
   business_hours_end: z.string().optional(),
   execution_hour: z.string().optional(),
@@ -96,6 +97,7 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
       trigger_type: "keyword",
       keywords: "",
       delay_minutes: 5,
+      max_attempts: 3,
       business_hours_start: "08:00",
       business_hours_end: "18:00",
       execution_hour: "09:00",
@@ -115,6 +117,7 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
         trigger_type: config?.type || "keyword",
         keywords: "",
         delay_minutes: config?.delay_minutes || 5,
+        max_attempts: config?.max_attempts || 3,
         business_hours_start: config?.business_hours?.start || "08:00",
         business_hours_end: config?.business_hours?.end || "18:00",
         execution_hour: config?.hour || "09:00",
@@ -131,6 +134,7 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
         trigger_type: "keyword",
         keywords: "",
         delay_minutes: 5,
+        max_attempts: 3,
         business_hours_start: "08:00",
         business_hours_end: "18:00",
         execution_hour: "09:00",
@@ -166,6 +170,7 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
 
     if (data.trigger_type === "no_response") {
       triggerConfig.delay_minutes = data.delay_minutes;
+      triggerConfig.max_attempts = data.max_attempts;
     }
 
     if (data.trigger_type === "business_hours") {
@@ -292,29 +297,52 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
               </div>
             )}
 
-            {/* Delay for no_response trigger */}
+            {/* Delay and Max Attempts for no_response trigger */}
             {triggerType === "no_response" && (
-              <FormField
-                control={form.control}
-                name="delay_minutes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tempo sem resposta (minutos)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Aguardar X minutos antes de enviar resposta automática
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="delay_minutes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tempo sem resposta (minutos)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="max_attempts"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Limite de Resgates</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="col-span-2">
+                  <FormDescription>
+                    Aguardar X minutos e tentar contato no máximo Y vezes por conversa.
+                  </FormDescription>
+                </div>
+              </div>
             )}
 
             {/* Business hours config */}
@@ -491,6 +519,6 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
           </form>
         </Form>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   );
 };

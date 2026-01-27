@@ -179,6 +179,7 @@ serve(async (req) => {
     await supabase.from("automation_logs").insert({
       rule_id: rule.id,
       contact_id: contact.id,
+      conversation_id: conversation_id,
       status: sendSuccess ? "enviado" : "erro",
       owner_id: ownerId,
       detalhes: {

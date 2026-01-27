@@ -9,6 +9,8 @@ export interface TriggerConfig {
   days?: number[];
   keywords?: string[];
   hour?: string;
+  delay_minutes?: number;
+  max_attempts?: number;
 }
 
 export interface AutomationRule {
