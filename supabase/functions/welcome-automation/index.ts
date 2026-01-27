@@ -17,14 +17,14 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { contact_id, trigger_type } = await req.json();
+    const { contact_id, trigger_type, conversation_id } = await req.json();
 
     console.log("Welcome automation triggered:", { contact_id, trigger_type });
 
     // Get contact info
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
-      .select("id, nome, whatsapp, email, matricula, secretaria")
+      .select("id, nome, whatsapp, email, matricula, secretaria, owner_id")
       .eq("id", contact_id)
       .single();
 
@@ -36,27 +36,26 @@ serve(async (req) => {
       );
     }
 
-    // Find active welcome automation rule
+    const ownerId = contact.owner_id;
+
+    // Find active welcome automation rule for this owner
     const { data: rules, error: rulesError } = await supabase
       .from("automation_rules")
-      .select("id, nome, mensagem, template_id, message_templates(conteudo)")
+      .select("id, nome, mensagem, template_id, message_templates(conteudo), trigger_config")
       .eq("ativo", true)
-      .or(`trigger_config->type.eq.new_contact,trigger_config->type.eq.first_message`);
+      .eq("owner_id", ownerId)
+      .or(`trigger_config->>type.eq.new_contact,trigger_config->>type.eq.first_message`);
 
-    if (rulesError) {
+    if (rulesError || !rules) {
       console.error("Error fetching automation rules:", rulesError);
       throw rulesError;
     }
 
-    // Filter by exact trigger type
-    const matchingRules = rules?.filter((rule: any) => {
-      try {
-        const config = rule.trigger_config || {};
-        return config.type === trigger_type;
-      } catch {
-        return false;
-      }
-    }) || [];
+    // Filter by exact trigger type in the JSONB config
+    const matchingRules = rules.filter((rule: any) => {
+      const config = rule.trigger_config || {};
+      return config.type === trigger_type;
+    });
 
     if (matchingRules.length === 0) {
       console.log("No active welcome automation rule found for trigger:", trigger_type);
@@ -77,20 +76,21 @@ serve(async (req) => {
     console.log(`Using automation rule: ${rule.nome}`);
 
     // Personalize message
+    const firstName = contact.nome?.split(" ")[0] || "";
     const personalizedMessage = messageTemplate
-      .replace(/\{\{nome\}\}/g, contact.nome?.split(" ")[0] || "")
+      .replace(/\{\{nome\}\}/g, firstName)
       .replace(/\{\{nome_completo\}\}/g, contact.nome || "")
       .replace(/\{\{matricula\}\}/g, contact.matricula || "")
       .replace(/\{\{secretaria\}\}/g, contact.secretaria || "")
       .replace(/\{\{email\}\}/g, contact.email || "");
 
-    // Check if we've already sent a welcome message to this contact
+    // Check if we've already sent a welcome message to this contact for THIS rule
     const { data: existingLog } = await supabase
       .from("automation_logs")
       .select("id")
       .eq("rule_id", rule.id)
       .eq("contact_id", contact.id)
-      .single();
+      .maybeSingle();
 
     if (existingLog) {
       console.log(`Welcome message already sent to ${contact.nome}`);
@@ -104,15 +104,34 @@ serve(async (req) => {
       );
     }
 
-    // Check WhatsApp credentials
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+    // Fetch WhatsApp credentials for this tenant
+    const { data: integration, error: intError } = await supabase
+      .from("integrations")
+      .select("config")
+      .eq("owner_id", ownerId)
+      .eq("integration_type", "whatsapp")
+      .eq("is_active", true)
+      .single();
+
+    if (intError || !integration) {
+      console.error(`WhatsApp integration not found or inactive for tenant ${ownerId}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "WhatsApp integration not found" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const config = typeof integration.config === 'string'
+      ? JSON.parse(integration.config)
+      : integration.config;
+
+    const WHATSAPP_TOKEN = config.access_token;
+    const PHONE_NUMBER_ID = config.phone_number_id;
 
     let sendSuccess = false;
     let sendError: string | undefined;
 
     if (WHATSAPP_TOKEN && PHONE_NUMBER_ID && contact.whatsapp) {
-      // Clean phone number
       const cleanPhone = contact.whatsapp.replace(/\D/g, "");
       const phoneWithCountry = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
@@ -140,17 +159,13 @@ serve(async (req) => {
           console.log(`Welcome message sent to ${contact.nome}`);
         } else {
           const errorData = await whatsappResponse.json();
-          sendError = JSON.stringify(errorData);
+          sendError = errorData.error?.message || JSON.stringify(errorData);
           console.error("WhatsApp API error:", errorData);
         }
       } catch (error: any) {
         sendError = error?.message || String(error);
         console.error("Error sending WhatsApp message:", error);
       }
-    } else {
-      // Mock send for testing
-      sendSuccess = true;
-      console.log(`[MOCK] Welcome message would be sent to ${contact.nome}: ${personalizedMessage}`);
     }
 
     // Log the automation
@@ -158,9 +173,25 @@ serve(async (req) => {
       rule_id: rule.id,
       contact_id: contact.id,
       status: sendSuccess ? "enviado" : "erro",
-      mensagem_enviada: personalizedMessage,
-      erro: sendError,
+      owner_id: ownerId,
+      detalhes: {
+        message: personalizedMessage,
+        error: sendError,
+        sent_at: new Date().toISOString(),
+      }
     });
+
+    // Also log to regular messages table if we have a conversation_id
+    if (sendSuccess && conversation_id) {
+      await supabase.from("messages").insert({
+        conversation_id,
+        content: personalizedMessage,
+        sender_type: "ia", // Log as IA so it's included in chat history
+        message_type: "text",
+        status: "sent"
+      });
+      console.log(`Log message inserted into conversation ${conversation_id}`);
+    }
 
     return new Response(
       JSON.stringify({

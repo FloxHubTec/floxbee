@@ -45,6 +45,7 @@ const automationSchema = z.object({
   delay_minutes: z.number().optional(),
   business_hours_start: z.string().optional(),
   business_hours_end: z.string().optional(),
+  execution_hour: z.string().optional(),
   use_template: z.boolean(),
   template_id: z.string().optional(),
   mensagem: z.string().optional(),
@@ -97,6 +98,7 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
       delay_minutes: 5,
       business_hours_start: "08:00",
       business_hours_end: "18:00",
+      execution_hour: "09:00",
       use_template: false,
       template_id: "",
       mensagem: "",
@@ -115,6 +117,7 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
         delay_minutes: config?.delay_minutes || 5,
         business_hours_start: config?.business_hours?.start || "08:00",
         business_hours_end: config?.business_hours?.end || "18:00",
+        execution_hour: config?.hour || "09:00",
         use_template: !!rule.template_id,
         template_id: rule.template_id || "",
         mensagem: rule.mensagem || "",
@@ -130,6 +133,7 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
         delay_minutes: 5,
         business_hours_start: "08:00",
         business_hours_end: "18:00",
+        execution_hour: "09:00",
         use_template: false,
         template_id: "",
         mensagem: "",
@@ -170,6 +174,10 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
         end: data.business_hours_end || "18:00",
         days: [1, 2, 3, 4, 5], // Mon-Fri
       };
+    }
+
+    if (data.trigger_type === "birthday") {
+      triggerConfig.hour = data.execution_hour || "09:00";
     }
 
     await onSubmit({
@@ -339,6 +347,25 @@ export const AutomationForm: React.FC<AutomationFormProps> = ({
                   )}
                 />
               </div>
+            )}
+
+            {triggerType === "birthday" && (
+              <FormField
+                control={form.control}
+                name="execution_hour"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Horário de Execução</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Horário em que a mensagem de parabéns será enviada
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             <FormField

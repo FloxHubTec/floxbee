@@ -8,6 +8,7 @@ export interface TriggerConfig {
   time?: string;
   days?: number[];
   keywords?: string[];
+  hour?: string;
 }
 
 export interface AutomationRule {
@@ -37,6 +38,7 @@ export const TRIGGER_TYPES = [
   { value: "no_response", label: "Sem Resposta (Tempo)" },
   { value: "schedule", label: "Agendamento" },
   { value: "ticket_status", label: "Mudança de Status Ticket" },
+  { value: "birthday", label: "Aniversário", description: "Envia uma mensagem no dia do aniversário do contato" },
 ];
 
 export function useAutomations() {

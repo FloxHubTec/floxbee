@@ -40,15 +40,16 @@ import {
   Users,
   Calendar,
   Ticket,
-  Loader2
+  Loader2,
+  Cake
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { 
-  useAutomations, 
-  AutomationRuleWithTemplate, 
-  TRIGGER_TYPES 
+import {
+  useAutomations,
+  AutomationRuleWithTemplate,
+  TRIGGER_TYPES
 } from "@/hooks/useAutomations";
 import { useTemplates } from "@/hooks/useTemplates";
 // CORREÇÃO: Adicionadas chaves { } para importação nomeada
@@ -140,6 +141,7 @@ const Automations: React.FC = () => {
       case 'new_contact': return <Users className="w-4 h-4 text-green-500" />;
       case 'schedule': return <Calendar className="w-4 h-4 text-purple-500" />;
       case 'ticket_status': return <Ticket className="w-4 h-4 text-red-500" />;
+      case 'birthday': return <Cake className="w-4 h-4 text-pink-500" />;
       default: return <Zap className="w-4 h-4 text-gray-500" />;
     }
   };
@@ -218,8 +220,8 @@ const Automations: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {getTriggerIcon(rule.tipo)}
-                            <span className="text-sm">{getTriggerLabel(rule.tipo)}</span>
+                            {getTriggerIcon(rule.config?.type || rule.tipo)}
+                            <span className="text-sm">{getTriggerLabel(rule.config?.type || rule.tipo)}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -252,7 +254,7 @@ const Automations: React.FC = () => {
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => handleDeleteClick(rule)}
                                 className="text-red-600 focus:text-red-600"
                               >

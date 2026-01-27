@@ -53,13 +53,13 @@ interface FrequencyCheckResult {
 function processTemplate(template: string, data: Record<string, string | undefined>): string {
   let result = template;
   const matches = template.matchAll(/\{\{(\w+)\}\}/g);
-  
+
   for (const match of matches) {
     const variable = match[1];
     const value = data[variable] || data[variable.toLowerCase()] || "";
     result = result.replace(match[0], value);
   }
-  
+
   return result;
 }
 
@@ -76,10 +76,10 @@ async function checkFrequencyLimits(
   const whatsappNumbers = recipients.map(r => r.whatsapp);
   const cutoffTime = new Date(Date.now() - frequencyLimitHours * 60 * 60 * 1000).toISOString();
 
-  console.log("Checking frequency limits:", { 
-    recipientCount: whatsappNumbers.length, 
+  console.log("Checking frequency limits:", {
+    recipientCount: whatsappNumbers.length,
     frequencyLimitHours,
-    cutoffTime 
+    cutoffTime
   });
 
   // Fetch contacts that have received messages recently
@@ -91,16 +91,16 @@ async function checkFrequencyLimits(
 
   if (error) {
     console.error("Error checking frequency limits:", error);
-    return { 
-      allowed: true, 
-      blocked_contacts: [], 
-      allowed_contacts: recipients 
+    return {
+      allowed: true,
+      blocked_contacts: [],
+      allowed_contacts: recipients
     };
   }
 
   const recentlyContacted = data as ContactRecord[] | null;
   const blockedWhatsapps = new Set((recentlyContacted || []).map(c => c.whatsapp));
-  
+
   const blocked_contacts: string[] = [];
   const allowed_contacts: FrequencyCheckResult["allowed_contacts"] = [];
 
@@ -112,9 +112,9 @@ async function checkFrequencyLimits(
     }
   }
 
-  console.log("Frequency check result:", { 
-    blocked: blocked_contacts.length, 
-    allowed: allowed_contacts.length 
+  console.log("Frequency check result:", {
+    blocked: blocked_contacts.length,
+    allowed: allowed_contacts.length
   });
 
   return {
@@ -149,10 +149,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { 
+    const {
       campaign_id,
-      name, 
-      message_template, 
+      name,
+      message_template,
       target_filter,
       recipients: providedRecipients,
       scheduled_at,
@@ -160,9 +160,9 @@ serve(async (req) => {
       bypass_frequency_check = false,
     }: CampaignRequest = await req.json();
 
-    console.log("Campaign request:", { 
-      name, 
-      hasFilter: !!target_filter, 
+    console.log("Campaign request:", {
+      name,
+      hasFilter: !!target_filter,
       providedRecipientsCount: providedRecipients?.length,
       scheduled: !!scheduled_at,
       frequencyLimitHours: frequency_limit_hours,
@@ -173,11 +173,11 @@ serve(async (req) => {
     if (scheduled_at && new Date(scheduled_at) > new Date()) {
       console.log("Campaign scheduled for:", scheduled_at);
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           scheduled: true,
           scheduled_at,
-          message: "Campanha agendada com sucesso" 
+          message: "Campanha agendada com sucesso"
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -188,7 +188,7 @@ serve(async (req) => {
     // If filter provided and no recipients, fetch from database
     if (target_filter && recipients.length === 0) {
       let query = supabase.from("contacts").select("id, whatsapp, nome, matricula, secretaria, email");
-      
+
       if (!target_filter.all) {
         if (target_filter.secretaria) {
           query = query.eq("secretaria", target_filter.secretaria);
@@ -197,11 +197,11 @@ serve(async (req) => {
           query = query.overlaps("tags", target_filter.tags);
         }
       }
-      
+
       query = query.eq("ativo", true);
-      
+
       const { data: contacts, error } = await query;
-      
+
       if (error) {
         console.error("Error fetching contacts:", error);
         return new Response(
@@ -209,7 +209,7 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      
+
       const contactList = contacts as ContactRecord[] | null;
       recipients = (contactList || []).map(c => ({
         contact_id: c.id,
@@ -219,7 +219,7 @@ serve(async (req) => {
         secretaria: c.secretaria || undefined,
         email: c.email || undefined
       }));
-      
+
       console.log("Fetched contacts from filter:", recipients.length);
     }
 
@@ -236,20 +236,20 @@ serve(async (req) => {
 
     if (!bypass_frequency_check && frequency_limit_hours > 0) {
       frequencyCheckResult = await checkFrequencyLimits(
-        supabase, 
-        recipients, 
+        supabase,
+        recipients,
         frequency_limit_hours
       );
-      
+
       if (frequencyCheckResult.blocked_contacts.length > 0) {
         console.log(`Blocked ${frequencyCheckResult.blocked_contacts.length} contacts due to frequency limit`);
       }
-      
+
       recipientsToSend = frequencyCheckResult.allowed_contacts;
-      
+
       if (recipientsToSend.length === 0) {
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             success: false,
             error: "Todos os destinatários foram bloqueados pelo limite de frequência",
             blocked_count: frequencyCheckResult.blocked_contacts.length,
@@ -261,6 +261,17 @@ serve(async (req) => {
       }
     }
 
+    // If campaign_id provided, get the owner_id to fetch proper credentials
+    let ownerId: string | null = null;
+    if (campaign_id) {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("owner_id")
+        .eq("id", campaign_id)
+        .maybeSingle();
+      ownerId = campaign?.owner_id || null;
+    }
+
     // Process and send messages
     const results: Array<{
       recipient: string;
@@ -270,12 +281,36 @@ serve(async (req) => {
       error?: string;
       mock?: boolean;
     }> = [];
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+
+    // Fetch Credentials from Database based on owner_id
+    let WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+    let PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+
+    if (ownerId) {
+      const { data: integration } = await supabase
+        .from("integrations")
+        .select("config")
+        .eq("owner_id", ownerId)
+        .eq("integration_type", "whatsapp")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (integration?.config) {
+        const config = typeof integration.config === 'string'
+          ? JSON.parse(integration.config)
+          : integration.config;
+
+        if (config.access_token && config.phone_number_id) {
+          WHATSAPP_TOKEN = config.access_token;
+          PHONE_NUMBER_ID = config.phone_number_id;
+          console.log(`Using database credentials for tenant: ${ownerId}`);
+        }
+      }
+    }
 
     if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
       console.log("WhatsApp not configured, returning mock results");
-      
+
       for (const recipient of recipientsToSend) {
         const personalizedMessage = processTemplate(message_template, recipient);
         results.push({
@@ -296,7 +331,7 @@ serve(async (req) => {
           blocked_by_frequency: frequencyCheckResult?.blocked_contacts.length || 0,
           frequency_limit_hours,
           results,
-          message: "WhatsApp não configurado. Retornando prévia das mensagens.",
+          message: "WhatsApp não configurado ou credenciais inválidas. Retornando prévia.",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -305,10 +340,10 @@ serve(async (req) => {
     // Real sending with WhatsApp
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     const sentWhatsapps: string[] = [];
-    
+
     for (const recipient of recipientsToSend) {
       const personalizedMessage = processTemplate(message_template, recipient);
-      
+
       try {
         const response = await fetch(
           `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
@@ -328,19 +363,35 @@ serve(async (req) => {
         );
 
         const data = await response.json();
-        
+
         if (response.ok) {
           sentWhatsapps.push(recipient.whatsapp);
         }
-        
+
         results.push({
           recipient: recipient.whatsapp,
           status: response.ok ? "sent" : "failed",
           message_id: data.messages?.[0]?.id,
-          error: data.error?.message,
+          error: data.error?.message || (response.status !== 200 ? `HTTP ${response.status}` : undefined),
         });
 
-        await delay(100);
+        // Log to campaign_logs if available
+        if (campaign_id) {
+          await supabase.from("automation_logs").insert({
+            rule_id: campaign_id, // Campaigns usually log to their own table, but using automation_logs as fallback or per user request
+            contact_id: recipient.contact_id,
+            status: response.ok ? "sucesso" : "erro",
+            owner_id: ownerId,
+            detalhes: {
+              type: "campaign",
+              message: personalizedMessage,
+              error: data.error?.message,
+              sent_at: new Date().toISOString()
+            }
+          }).catch(console.error);
+        }
+
+        await delay(200); // 200ms delay for safety
       } catch (error) {
         results.push({
           recipient: recipient.whatsapp,

@@ -139,6 +139,8 @@ serve(async (req) => {
                 contactName: contactName,
               });
 
+              let automationTriggered = false;
+
               // Extract message content
               let messageContent = "";
               let messageType = message.type;
@@ -214,27 +216,6 @@ serve(async (req) => {
                   nome: contactName,
                   whatsapp: whatsappNumber,
                 });
-
-                // Trigger welcome automation for new contact
-                try {
-                  const welcomeResponse = await fetch(`${supabaseUrl}/functions/v1/welcome-automation`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${supabaseKey}`,
-                    },
-                    body: JSON.stringify({
-                      contact_id: contactId,
-                      trigger_type: "new_contact",
-                    }),
-                  });
-
-                  if (welcomeResponse.ok) {
-                    console.log("Welcome automation triggered for new contact");
-                  }
-                } catch (welcomeError) {
-                  console.error("Error triggering welcome automation:", welcomeError);
-                }
               } else {
                 contactId = existingContact.id;
 
@@ -309,6 +290,49 @@ serve(async (req) => {
               }
 
               // ==========================================
+              // TRIGGER AUTOMATIONS (Welcome / First Message)
+              // ==========================================
+
+              try {
+                const isNewContact = !existingContact;
+                const isNewConversation = !existingConversation;
+                const triggerType = isNewContact ? "new_contact" : (isNewConversation ? "first_message" : null);
+
+                if (triggerType) {
+                  // Check if there is an active rule for this trigger type
+                  const { data: activeRules } = await supabase
+                    .from("automation_rules")
+                    .select("id, trigger_config")
+                    .eq("ativo", true)
+                    .eq("owner_id", ownerId)
+                    .or(`trigger_config->>type.eq.new_contact,trigger_config->>type.eq.first_message`);
+
+                  const hasRule = activeRules?.some((rule: any) => rule.trigger_config?.type === triggerType);
+
+                  if (hasRule) {
+                    console.log(`Triggering welcome-automation for: ${triggerType}`);
+                    // We don't await this to avoid delaying the webhook response
+                    fetch(`${supabaseUrl}/functions/v1/welcome-automation`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${supabaseKey}`,
+                      },
+                      body: JSON.stringify({
+                        contact_id: contactId,
+                        trigger_type: triggerType,
+                        conversation_id: conversationId,
+                      }),
+                    }).catch(err => console.error("Error triggering welcome automation:", err));
+
+                    automationTriggered = true;
+                  }
+                }
+              } catch (autoErr) {
+                console.error("Error checking/triggering automations:", autoErr);
+              }
+
+              // ==========================================
               // SAVE INCOMING MESSAGE
               // ==========================================
 
@@ -337,8 +361,27 @@ serve(async (req) => {
               // TRIGGER AI RESPONSE IF BOT IS ACTIVE
               // ==========================================
 
-              if (isBotActive && message.type === "text" && messageContent) {
+              if (isBotActive && message.type === "text" && messageContent && !automationTriggered) {
                 try {
+                  // Fetch conversation history
+                  const { data: history } = await supabase
+                    .from("messages")
+                    .select("content, sender_type")
+                    .eq("conversation_id", conversationId)
+                    .order("created_at", { ascending: false })
+                    .limit(10);
+
+                  const formattedHistory = (history || [])
+                    .reverse()
+                    .map((msg: any) => ({
+                      role: msg.sender_type === "servidor" ? "user" : "assistant",
+                      content: msg.content,
+                    }));
+
+                  // If history is empty (shouldn't be as we just saved the current message), 
+                  // or just contains the current message, use just the current message.
+                  // Actually, ai-chat might benefit from knowing the full history.
+
                   const aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
                     method: "POST",
                     headers: {
@@ -346,7 +389,7 @@ serve(async (req) => {
                       Authorization: `Bearer ${supabaseKey}`,
                     },
                     body: JSON.stringify({
-                      messages: [{ role: "user", content: messageContent }],
+                      messages: formattedHistory.length > 0 ? formattedHistory : [{ role: "user", content: messageContent }],
                       context: {
                         servidor_nome: contactName,
                         owner_id: ownerId,
