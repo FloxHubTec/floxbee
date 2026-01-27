@@ -17,7 +17,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { contact_id, trigger_type, conversation_id } = await req.json();
+    const { contact_id, trigger_type, conversation_id, rule_id } = await req.json();
 
     console.log("Welcome automation triggered:", { contact_id, trigger_type });
 
@@ -38,13 +38,20 @@ serve(async (req) => {
 
     const ownerId = contact.owner_id;
 
-    // Find active welcome automation rule for this owner
-    const { data: rules, error: rulesError } = await supabase
+    // Find active automation rule for this owner
+    let ruleQuery = supabase
       .from("automation_rules")
       .select("id, nome, mensagem, template_id, message_templates(conteudo), trigger_config")
       .eq("ativo", true)
-      .eq("owner_id", ownerId)
-      .or(`trigger_config->>type.eq.new_contact,trigger_config->>type.eq.first_message`);
+      .eq("owner_id", ownerId);
+
+    if (rule_id) {
+      ruleQuery = ruleQuery.eq("id", rule_id);
+    } else {
+      ruleQuery = ruleQuery.or(`trigger_config->>type.eq.new_contact,trigger_config->>type.eq.first_message,trigger_config->>type.eq.keyword`);
+    }
+
+    const { data: rules, error: rulesError } = await ruleQuery;
 
     if (rulesError || !rules) {
       console.error("Error fetching automation rules:", rulesError);

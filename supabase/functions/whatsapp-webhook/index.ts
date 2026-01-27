@@ -305,12 +305,22 @@ serve(async (req) => {
                     .select("id, trigger_config")
                     .eq("ativo", true)
                     .eq("owner_id", ownerId)
-                    .or(`trigger_config->>type.eq.new_contact,trigger_config->>type.eq.first_message`);
+                    .or(`trigger_config->>type.eq.new_contact,trigger_config->>type.eq.first_message,trigger_config->>type.eq.keyword`);
 
-                  const hasRule = activeRules?.some((rule: any) => rule.trigger_config?.type === triggerType);
+                  const matchedRule = activeRules?.find((rule: any) => {
+                    const config = rule.trigger_config || {};
+                    if (config.type === triggerType) return true;
+                    if (config.type === "keyword" && messageContent) {
+                      const keywords = config.keywords || [];
+                      const normalizedMsg = messageContent.toLowerCase();
+                      return keywords.some((kw: string) => normalizedMsg.includes(kw.toLowerCase()));
+                    }
+                    return false;
+                  });
 
-                  if (hasRule) {
-                    console.log(`Triggering welcome-automation for: ${triggerType}`);
+                  if (matchedRule) {
+                    const finalTriggerType = (matchedRule.trigger_config as any).type;
+                    console.log(`Triggering automation: ${finalTriggerType} (Rule: ${matchedRule.id})`);
                     // We don't await this to avoid delaying the webhook response
                     fetch(`${supabaseUrl}/functions/v1/welcome-automation`, {
                       method: "POST",
@@ -320,10 +330,44 @@ serve(async (req) => {
                       },
                       body: JSON.stringify({
                         contact_id: contactId,
-                        trigger_type: triggerType,
+                        trigger_type: finalTriggerType,
                         conversation_id: conversationId,
+                        rule_id: matchedRule.id,
                       }),
-                    }).catch(err => console.error("Error triggering welcome automation:", err));
+                    }).catch(err => console.error("Error triggering automation:", err));
+
+                    automationTriggered = true;
+                  }
+                } else if (messageContent) {
+                  // If no welcome/first_message, still check for keywords
+                  const { data: keywordRules } = await supabase
+                    .from("automation_rules")
+                    .select("id, trigger_config")
+                    .eq("ativo", true)
+                    .eq("owner_id", ownerId)
+                    .contains("trigger_config", { type: "keyword" });
+
+                  const matchedRule = keywordRules?.find((rule: any) => {
+                    const keywords = (rule.trigger_config as any).keywords || [];
+                    const normalizedMsg = messageContent.toLowerCase();
+                    return keywords.some((kw: string) => normalizedMsg.includes(kw.toLowerCase()));
+                  });
+
+                  if (matchedRule) {
+                    console.log(`Triggering keyword automation: ${matchedRule.id}`);
+                    fetch(`${supabaseUrl}/functions/v1/welcome-automation`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${supabaseKey}`,
+                      },
+                      body: JSON.stringify({
+                        contact_id: contactId,
+                        trigger_type: "keyword",
+                        conversation_id: conversationId,
+                        rule_id: matchedRule.id,
+                      }),
+                    }).catch(err => console.error("Error triggering automation:", err));
 
                     automationTriggered = true;
                   }
