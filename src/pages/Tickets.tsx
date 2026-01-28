@@ -196,12 +196,6 @@ const TicketCard: React.FC<TicketCardProps> = ({
                   Marcar como Concluído
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {agentes.map((agente) => (
-                  <DropdownMenuItem key={agente.id} onClick={(e) => { e.stopPropagation(); onAssign(ticket.id, agente.id); }}>
-                    Atribuir a {agente.nome}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={(e) => { e.stopPropagation(); onDelete(ticket.id); }}
                   className="text-destructive focus:text-destructive"

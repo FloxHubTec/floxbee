@@ -30,11 +30,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, Clock, History as HistoryIcon, ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown, Loader2, Clock, History as HistoryIcon, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useTicketHistory, type TicketWithRelations } from "@/hooks/useTickets";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 
 // Schema flexível para department_id
 const ticketSchema = z.object({
@@ -124,7 +134,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({
         contact_id: ticket.contact_id || "",
         assigned_to: ticket.assigned_to || "",
         // Converte null do banco para "" do form
-        department_id: ticket.department_id || "", 
+        department_id: ticket.department_id || "",
       });
     } else {
       form.reset({
@@ -140,17 +150,17 @@ export const TicketForm: React.FC<TicketFormProps> = ({
 
   const handleSubmit = async (data: TicketFormValues) => {
     // Tratamento explícito: Converte vazio/"__none__" para NULL, senão usa o valor string (UUID)
-    const deptId = (!data.department_id || data.department_id === "" || data.department_id === "__none__") 
-        ? null 
-        : data.department_id;
+    const deptId = (!data.department_id || data.department_id === "" || data.department_id === "__none__")
+      ? null
+      : data.department_id;
 
-    const contactId = (!data.contact_id || data.contact_id === "" || data.contact_id === "__none__") 
-        ? null 
-        : data.contact_id;
+    const contactId = (!data.contact_id || data.contact_id === "" || data.contact_id === "__none__")
+      ? null
+      : data.contact_id;
 
-    const assignedTo = (!data.assigned_to || data.assigned_to === "" || data.assigned_to === "__none__") 
-        ? null 
-        : data.assigned_to;
+    const assignedTo = (!data.assigned_to || data.assigned_to === "" || data.assigned_to === "__none__")
+      ? null
+      : data.assigned_to;
 
     const formattedData = {
       ...data,
@@ -158,14 +168,14 @@ export const TicketForm: React.FC<TicketFormProps> = ({
       contact_id: contactId,
       assigned_to: assignedTo,
     };
-    
+
     // Debug: Veja no console do navegador se 'department_id' é um UUID válido ou null
     console.log("Formulário enviando:", formattedData);
-    
+
     await onSubmit(formattedData);
-    
+
     if (!isEditing) {
-        form.reset();
+      form.reset();
     }
   };
 
@@ -252,9 +262,9 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Contato</FormLabel>
-                      <Select 
-                        onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)} 
-                        value={field.value || "__none__"} 
+                      <Select
+                        onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)}
+                        value={field.value || "__none__"}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -281,26 +291,89 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                   control={form.control}
                   name="assigned_to"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel>Atribuir para</FormLabel>
-                      <Select 
-                        onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)} 
-                        value={field.value || "__none__"} 
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione agente" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">Não atribuído</SelectItem>
-                          {agentes.map((agente) => (
-                            <SelectItem key={agente.id} value={agente.id}>
-                              {agente.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {agentes.length > 3 ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value
+                                  ? agentes.find((agente) => agente.id === field.value)?.nome
+                                  : "Selecione agente"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0">
+                            <Command>
+                              <CommandInput placeholder="Buscar agente..." />
+                              <CommandList>
+                                <CommandEmpty>Nenhum agente encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="__none__"
+                                    onSelect={() => {
+                                      field.onChange("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === "" ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    Não atribuído
+                                  </CommandItem>
+                                  {agentes.map((agente) => (
+                                    <CommandItem
+                                      key={agente.id}
+                                      value={agente.nome}
+                                      onSelect={() => {
+                                        field.onChange(agente.id);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          agente.id === field.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {agente.nome}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <Select
+                          onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)}
+                          value={field.value || "__none__"}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione agente" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="__none__">Não atribuído</SelectItem>
+                            {agentes.map((agente) => (
+                              <SelectItem key={agente.id} value={agente.id}>
+                                {agente.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -314,11 +387,11 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Departamento</FormLabel>
-                    <Select 
+                    <Select
                       onValueChange={(val) => {
                         // Quando seleciona, salva o UUID ou string vazia
                         field.onChange(val === "__none__" ? "" : val);
-                      }} 
+                      }}
                       value={field.value || "__none__"} // Se null/vazio, mostra "Nenhum"
                     >
                       <FormControl>
