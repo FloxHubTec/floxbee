@@ -12,6 +12,10 @@ type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];
 
 export interface ConversationWithContact extends ConversationRow {
   contact: ContactRow | null;
+  assigned_profile?: {
+    id: string;
+    nome: string | null;
+  } | null;
 }
 
 export interface MessageWithSender extends MessageRow {
@@ -32,7 +36,8 @@ export const useConversations = () => {
         .from("conversations")
         .select(`
           *,
-          contact:contacts(*)
+          contact:contacts(*),
+          assigned_profile:assigned_to(id, nome)
         `)
         .order("last_message_at", { ascending: false });
 

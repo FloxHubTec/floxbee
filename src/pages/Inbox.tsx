@@ -406,10 +406,19 @@ const Inbox: React.FC = () => {
       );
     }
 
-    // Badge de não atribuído
-    if (!conv.assigned_to) {
+    // Badge de agente atribuído
+    if (conv.assigned_to) {
+      const agentName = (conv as any).assigned_profile?.nome || 'Agente';
       badges.push(
-        <Badge key="unassigned" variant="outline" className="text-xs">
+        <Badge key="assigned" variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+          <User className="w-3 h-3 mr-1" />
+          {agentName}
+        </Badge>
+      );
+    } else {
+      // Badge de não atribuído
+      badges.push(
+        <Badge key="unassigned" variant="outline" className="text-xs border-dashed">
           Não atribuído
         </Badge>
       );
