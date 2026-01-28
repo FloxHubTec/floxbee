@@ -12,6 +12,23 @@ export interface QRCodeOptions {
 }
 
 /**
+ * Normaliza o número de telefone adicionando DDI 55 se não existir e tiver apenas DDD + número.
+ */
+export const normalizePhoneNumber = (phone: string): string => {
+    if (!phone) return '';
+
+    // Remove tudo que não for número
+    const cleaned = phone.replace(/\D/g, '');
+
+    // Se tiver 10 ou 11 dígitos (apenas DDD + número), adiciona o 55
+    if (cleaned.length === 10 || cleaned.length === 11) {
+        return `55${cleaned}`;
+    }
+
+    return cleaned;
+};
+
+/**
  * Generate QR code as Data URL (PNG)
  */
 export const generateQRCodeDataURL = async (
@@ -107,8 +124,9 @@ export const generateQRContent = {
     },
 
     whatsapp: (phoneNumber: string, message?: string): string => {
+        const normalizedPhone = normalizePhoneNumber(phoneNumber);
         const encodedMessage = message ? encodeURIComponent(message) : '';
-        return `https://wa.me/${phoneNumber}${message ? `?text=${encodedMessage}` : ''}`;
+        return `https://wa.me/${normalizedPhone}${message ? `?text=${encodedMessage}` : ''}`;
     },
 
     email: (email: string, subject?: string, body?: string): string => {
@@ -130,7 +148,7 @@ export const generateQRContent = {
             'BEGIN:VCARD',
             'VERSION:3.0',
             `FN:${data.name}`,
-            data.phone ? `TEL:${data.phone}` : '',
+            data.phone ? `TEL:${normalizePhoneNumber(data.phone)}` : '',
             data.email ? `EMAIL:${data.email}` : '',
             data.organization ? `ORG:${data.organization}` : '',
             data.title ? `TITLE:${data.title}` : '',

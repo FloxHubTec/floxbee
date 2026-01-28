@@ -22,6 +22,7 @@ import {
     downloadQRCodePNG,
     downloadQRCodeSVG,
     generateQRContent,
+    normalizePhoneNumber,
 } from '@/lib/qrCodeGenerator';
 
 interface QRCodeGeneratorProps {
