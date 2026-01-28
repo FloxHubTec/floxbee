@@ -43,6 +43,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
 
     const clearFilters = () => {
         onFiltersChange({
+            ...filters,
             prioridade: 'all',
             agente: 'all',
             sla: 'all',

@@ -23,7 +23,8 @@ import {
   GripVertical,
   Edit,
   AlertCircle,
-  ArrowUpDown
+  ArrowUpDown,
+  X
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -270,6 +271,22 @@ const Tickets: React.FC = () => {
     departamento: 'all',
   });
 
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilters({
+      prioridade: 'all',
+      agente: 'all',
+      sla: 'all',
+      departamento: 'all',
+    });
+  };
+
+  const hasActiveFilters = searchQuery !== '' ||
+    filters.prioridade !== 'all' ||
+    filters.agente !== 'all' ||
+    filters.sla !== 'all' ||
+    filters.departamento !== 'all';
+
   // Buscar departamentos ativos
   const { data: departamentos = [] } = useActiveDepartments ? useActiveDepartments() : { data: [] };
 
@@ -497,14 +514,35 @@ const Tickets: React.FC = () => {
             </Button>
           </div>
         </div>
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar tickets..."
-            className="pl-10 bg-secondary border-0"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex items-center gap-4">
+          <div className="relative max-w-md flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar tickets..."
+              className="pl-10 bg-secondary border-0"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearFilters}
+              className="text-muted-foreground hover:text-foreground h-9"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Limpar Filtros
+            </Button>
+          )}
         </div>
       </div>
 

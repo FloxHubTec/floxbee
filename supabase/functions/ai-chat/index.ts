@@ -88,7 +88,9 @@ const tools = [
           nome: { type: "string" },
           email: { type: "string" },
           matricula: { type: "string" },
-          secretaria: { type: "string" }
+          secretaria: { type: "string" },
+          data_nascimento: { type: "string", description: "Data de nascimento no formato YYYY-MM-DD" },
+          cargo: { type: "string" }
         }
       }
     }
@@ -193,7 +195,15 @@ serve(async (req) => {
     if (context?.contact_id) {
       const { data: contact } = await supabase.from('contacts').select('*').eq('id', context.contact_id).maybeSingle();
       if (contact) {
-        personalizedPrompt += `\n\nDados atuais do servidor:\n- Nome: ${contact.nome}\n- Matrícula: ${contact.matricula || 'N/A'}\n- Secretaria: ${contact.secretaria || 'N/A'}\n- Tags: ${contact.tags?.join(', ') || 'Nenhuma'}`;
+        personalizedPrompt += `\n\n--- DADOS DO CADASTRO ATUAL ---\nVocê tem acesso aos dados abaixo e DEVE utilizá-los para confirmar informações com o próprio servidor se ele solicitar.
+- Nome: ${contact.nome}
+- Matrícula: ${contact.matricula || 'Não informada'}
+- E-mail: ${contact.email || 'Não informado'}
+- Data de Nascimento: ${contact.data_nascimento || 'Não informada'}
+- Secretaria: ${contact.secretaria || 'Não informada'}
+- Cargo: ${contact.cargo || 'Não informado'}
+- Tags: ${contact.tags?.join(', ') || 'Nenhuma'}
+------------------------------`;
       }
     }
 
