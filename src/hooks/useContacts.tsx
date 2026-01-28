@@ -142,6 +142,28 @@ export const useContacts = () => {
     },
   });
 
+  // 5. ATUALIZAR TAGS (Utilizado no Inbox)
+  const updateContactTags = useMutation({
+    mutationFn: async ({ id, tags }: { id: string; tags: string[] }) => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .update({ tags })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao atualizar tags: " + error.message);
+    },
+  });
+
   return {
     contacts,
     isLoading,
@@ -149,6 +171,7 @@ export const useContacts = () => {
     createContact,
     updateContact,
     deleteContact,
+    updateContactTags,
   };
 };
 

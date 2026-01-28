@@ -234,6 +234,11 @@ export const useSendMessage = () => {
         updateData.unread_count = 0;
       }
 
+      // NOVO: Se o remetente for um humano (user/agente), desativa a IA automaticamente
+      if (['user', 'agente'].includes(senderType)) {
+        updateData.is_bot_active = false;
+      }
+
       const { error: convError } = await supabase
         .from("conversations")
         .update(updateData)
@@ -418,6 +423,33 @@ export const useDeleteConversation = () => {
     },
     onError: (error) => {
       toast.error("Erro ao excluir conversa: " + error.message);
+    }
+  });
+};
+
+// --- 11. TRANSFERIR PARA FILA (REATIVAR IA) ---
+export const useTransferToQueue = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from("conversations")
+        .update({
+          assigned_to: null,
+          is_bot_active: true,
+          status: 'ativo'
+        })
+        .eq("id", conversationId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success("Conversa enviada para a fila da IA!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao transferir para fila: " + error.message);
     }
   });
 };

@@ -22,7 +22,9 @@ import {
   Power,
   Trash2,
   ArrowLeft,
-  RotateCcw
+  RotateCcw,
+  Tag,
+  Plus
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -45,8 +47,10 @@ import {
   useToggleBotStatus,
   useMarkAsRead,
   useDeleteConversation,
+  useTransferToQueue,
   type ConversationWithContact
 } from '@/hooks/useConversations';
+import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useFileUpload, type UploadedFile } from '@/hooks/useFileUpload';
@@ -114,7 +118,11 @@ const Inbox: React.FC = () => {
   const toggleBotStatus = useToggleBotStatus();
   const markAsRead = useMarkAsRead();
   const deleteConversation = useDeleteConversation();
+  const transferToQueue = useTransferToQueue();
+  const { updateContactTags } = useContacts();
   const { uploadFile, isUploading, getFileType, allowedTypes } = useFileUpload();
+
+  const [newTag, setNewTag] = useState('');
 
   // Filtragem e busca COMBINADAS
   const filteredConversations = useMemo(() => {
@@ -243,6 +251,37 @@ const Inbox: React.FC = () => {
     await transferConversation.mutateAsync({
       conversationId: selectedConversation.id,
       assignTo: userId,
+    });
+    setShowTransferDialog(false);
+  };
+
+  const handleTransferToIA = async () => {
+    if (!selectedConversation) return;
+    await transferToQueue.mutateAsync(selectedConversation.id);
+  };
+
+  const handleAddTag = async () => {
+    if (!selectedConversation?.contact || !newTag.trim()) return;
+    const currentTags = selectedConversation.contact.tags || [];
+    if (currentTags.includes(newTag.trim())) {
+      toast.error('Esta tag já existe');
+      return;
+    }
+    const updatedTags = [...currentTags, newTag.trim()];
+    await updateContactTags.mutateAsync({
+      id: selectedConversation.contact.id,
+      tags: updatedTags
+    });
+    setNewTag('');
+  };
+
+  const handleRemoveTag = async (tagToRemove: string) => {
+    if (!selectedConversation?.contact) return;
+    const currentTags = selectedConversation.contact.tags || [];
+    const updatedTags = currentTags.filter(t => t !== tagToRemove);
+    await updateContactTags.mutateAsync({
+      id: selectedConversation.contact.id,
+      tags: updatedTags
     });
   };
 
@@ -592,6 +631,16 @@ const Inbox: React.FC = () => {
                 <Button
                   variant="outline"
                   size={isMobile ? "icon" : "sm"}
+                  className="gap-2 shrink-0 border-blue-500/30 text-blue-600 hover:bg-blue-50"
+                  onClick={handleTransferToIA}
+                  disabled={transferToQueue.isPending}
+                >
+                  <Bot className="w-4 h-4" /> {!isMobile && "Transferir IA"}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size={isMobile ? "icon" : "sm"}
                   className="gap-2 shrink-0"
                   onClick={() => setShowTransferDialog(true)}
                 >
@@ -819,6 +868,39 @@ const Inbox: React.FC = () => {
                     <span className="text-sm font-medium">{(selectedConversation.contact as any).secretaria}</span>
                   </div>
                 )}
+
+                <div className="pt-4 border-t border-border mt-4">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-3 block">Tags do Contato</span>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {selectedConversation.contact.tags?.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="secondary"
+                        className="text-[10px] pr-1.5 flex items-center gap-1 group"
+                      >
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="hover:text-destructive transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    )) || <span className="text-xs text-muted-foreground italic">Nenhuma tag</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nova tag..."
+                      className="h-8 text-xs"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                    />
+                    <Button size="sm" className="h-8 px-2" onClick={handleAddTag}>
+                      <Plus className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
