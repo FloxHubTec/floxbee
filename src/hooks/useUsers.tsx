@@ -30,9 +30,9 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 
 export const ROLE_COLORS: Record<AppRole, string> = {
   superadmin: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-  admin: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  admin: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
   supervisor: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  agente: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  agente: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
 };
 
 export function useUsers() {

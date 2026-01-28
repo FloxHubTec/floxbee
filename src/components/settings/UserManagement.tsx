@@ -96,22 +96,27 @@ const UserManagement: React.FC = () => {
   };
 
   // 1. Lista de Admins (Para Superadmin ver seus clientes)
-  const adminUsers = users.filter(u => u.role === 'admin' || u.role === 'superadmin');
+  const adminUsers = users.filter(u => {
+    if (u.role !== 'admin' && u.role !== 'superadmin') return false;
+    if (u.user_id === currentUser?.id) return true; // Eu sempre me vejo
+    return u.created_by === currentProfile?.id; // Mostro quem EU criei
+  });
 
   // 2. Lista Operacional (Supervisor e Agente)
   const operationalUsers = users.filter(u => {
     const isOp = u.role === 'agente' || u.role === 'supervisor';
     if (!isOp) return false;
 
-    // Se sou Superadmin, mostro quem EU criei ou quem é do meu "tenant"
-    // (A RLS já cuida de filtrar por owner_id, então aqui apenas garantimos a distinção de abas)
-    if (isSuperadmin) {
-      // O Superadmin vê seus colaboradores diretos na aba de Time
-      return u.role === 'agente' || u.role === 'supervisor';
-    }
+    if (u.user_id === currentUser?.id) return true; // Eu sempre me vejo
 
-    // Admins e outros vêm a lista unificada filtrada pela RLS
-    return true;
+    // Mostro apenas quem eu criei
+    return u.created_by === currentProfile?.id;
+  });
+
+  // Lista base unificada para quando não for Superadmin
+  const filteredTeam = users.filter(u => {
+    if (u.user_id === currentUser?.id) return true;
+    return u.created_by === currentProfile?.id;
   });
 
   // --- AÇÕES DO CRUD ---
@@ -143,14 +148,16 @@ const UserManagement: React.FC = () => {
 
       if (profileError) throw profileError;
 
-      // 2. Atualizar Permissões na tabela user_roles
-      // Nota: role é atualizado pelo Select direto na lista, aqui focamos em permissions
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .update({ permissions: editForm.permissions })
-        .eq('user_id', editingUser.user_id); // A chave é user_id na tabela user_roles
+      // 2. Atualizar Permissões na tabela profiles (tabela única)
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          nome: editForm.nome,
+          permissions: editForm.permissions
+        })
+        .eq('user_id', editingUser.user_id);
 
-      if (roleError) throw roleError;
+      if (profileUpdateError) throw profileUpdateError;
 
       toast.success("Usuário atualizado com sucesso!");
       setIsEditOpen(false);
@@ -465,7 +472,7 @@ const UserManagement: React.FC = () => {
               </TabsContent>
             </Tabs>
           ) : (
-            <UserList data={filterUsers(users)} />
+            <UserList data={filterUsers(filteredTeam)} />
           )}
         </CardContent>
       </Card>
