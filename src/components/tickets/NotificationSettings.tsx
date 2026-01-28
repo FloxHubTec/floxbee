@@ -126,9 +126,10 @@ const NotificationSettings: React.FC = () => {
             };
 
             if (editingSetting) {
+                const { owner_id, ...updateData } = settingData;
                 await updateSetting.mutateAsync({
                     id: editingSetting.id,
-                    ...settingData,
+                    ...updateData,
                 });
                 toast({
                     title: 'Configuração atualizada',
