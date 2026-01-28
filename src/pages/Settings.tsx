@@ -324,6 +324,7 @@ const Settings: React.FC = () => {
             <ChangePasswordDialog
               open={isChangePasswordOpen}
               onOpenChange={setIsChangePasswordOpen}
+              onSuccess={() => setIsChangePasswordOpen(false)}
             />
           </TabsContent>
 

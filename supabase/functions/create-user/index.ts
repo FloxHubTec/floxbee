@@ -61,7 +61,8 @@ serve(async (req) => {
           role: role || 'agente',       // <--- Agora salvamos direto no profile
           permissions: permissions || {}, // <--- Agora salvamos direto no profile
           created_by: created_by || null,
-          ativo: true
+          ativo: true,
+          must_change_password: true // Novos usuários precisam trocar a senha
         })
         .eq("user_id", newUserId);
 

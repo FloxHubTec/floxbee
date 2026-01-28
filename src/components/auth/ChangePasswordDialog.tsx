@@ -18,10 +18,11 @@ const passwordSchema = z.object({
 
 interface ChangePasswordDialogProps {
   open: boolean;
-  onSuccess: () => void;
+  onOpenChange?: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onSuccess }) => {
+const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onOpenChange, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -59,7 +60,8 @@ const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onSuc
       toast.success('Senha alterada com sucesso!');
       setPassword('');
       setConfirmPassword('');
-      onSuccess();
+      if (onSuccess) onSuccess();
+      if (onOpenChange) onOpenChange(false);
     } catch (error: any) {
       console.error('Error changing password:', error);
       toast.error('Erro ao alterar senha', {
@@ -71,7 +73,7 @@ const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({ open, onSuc
   };
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={onOpenChange || (() => { })}>
       <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Alterar Senha Obrigatória</DialogTitle>
