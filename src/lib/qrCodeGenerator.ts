@@ -123,11 +123,14 @@ export const generateQRContent = {
         return url;
     },
 
-    whatsapp: (phoneNumber: string, message?: string): string => {
-        const normalizedPhone = normalizePhoneNumber(phoneNumber);
-        const encodedMessage = message ? encodeURIComponent(message) : '';
-        return `https://wa.me/${normalizedPhone}${message ? `?text=${encodedMessage}` : ''}`;
-    },
+    whatsapp: (phone?: string, message?: string): string => {
+    if (!phone) return '';
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    const encodedMessage = message ? encodeURIComponent(message) : '';
+
+    return `https://wa.me/${cleanPhone}${message ? `?text=${encodedMessage}` : ''}`;
+},
 
     email: (email: string, subject?: string, body?: string): string => {
         const params = new URLSearchParams();
