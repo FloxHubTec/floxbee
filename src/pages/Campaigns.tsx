@@ -244,6 +244,15 @@ const Campaigns: React.FC = () => {
       setSelectedTemplateId(campaign.template_id);
     }
 
+    if (campaign.agendado_para) {
+      const date = new Date(campaign.agendado_para);
+      setScheduleDate(format(date, 'yyyy-MM-dd'));
+      setScheduleTime(format(date, 'HH:mm'));
+    } else {
+      setScheduleDate('');
+      setScheduleTime('');
+    }
+
     setShowWizard(true);
   };
 
@@ -663,6 +672,12 @@ const Campaigns: React.FC = () => {
                           {statusConfig.label}
                         </Badge>
                         <h3 className="font-bold text-lg text-foreground line-clamp-1" title={campaign.nome}>{campaign.nome}</h3>
+                        {campaign.status === 'agendada' && campaign.agendado_para && (
+                          <p className="text-xs text-orange-600 font-medium mt-1 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            Agendado: {format(new Date(campaign.agendado_para), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> {campaign.created_at ? format(new Date(campaign.created_at), "dd 'de' MMMM", { locale: ptBR }) : '-'}</p>
                       </div>
                       <DropdownMenu>
