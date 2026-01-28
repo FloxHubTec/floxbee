@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Search, Loader2, UserX } from 'lucide-react';
-import { useUsers, ROLE_LABELS, ROLE_COLORS } from '@/hooks/useUsers';
+import { useAgentes } from '@/hooks/useTickets';
+import { ROLE_LABELS, ROLE_COLORS } from '@/hooks/useUsers';
 import { cn } from '@/lib/utils';
 
 interface TransferDialogProps {
@@ -33,14 +34,11 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-    const { users, isLoading: loadingUsers } = useUsers();
+    const { data: agentes = [], isLoading: loadingAgents } = useAgentes();
 
-    // Filtrar apenas usuários ativos
-    const activeUsers = users.filter((user) => user.ativo);
-
-    // Aplicar filtro de busca
-    const filteredUsers = activeUsers.filter((user) =>
-        user.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    // Aplicar filtro de busca na lista já filtrada por cargo operacional pelo hook useAgentes
+    const filteredUsers = agentes.filter((user) =>
+        user.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -64,7 +62,7 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
                 <DialogHeader>
                     <DialogTitle>Transferir Conversa</DialogTitle>
                     <DialogDescription>
-                        Escolha um agente, supervisor ou admin para assumir esta conversa
+                        Escolha um supervisor ou agente para assumir esta conversa
                     </DialogDescription>
                 </DialogHeader>
 
@@ -82,7 +80,7 @@ export const TransferDialog: React.FC<TransferDialogProps> = ({
 
                     {/* Lista de usuários */}
                     <div className="max-h-[300px] overflow-y-auto space-y-2">
-                        {loadingUsers ? (
+                        {loadingAgents ? (
                             <div className="flex items-center justify-center py-8">
                                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                             </div>
