@@ -63,10 +63,23 @@ export const useContacts = () => {
   // 2. CRIAR CONTATO
   const createContact = useMutation({
     mutationFn: async (newContact: ContactInsert) => {
+      // Buscar o profile do usuário logado para obter o owner_id (Tenant)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, owner_id")
+        .eq("user_id", user.id)
+        .single();
+
+      const owner_id = profile?.owner_id || profile?.id;
+
       const { data, error } = await supabase
         .from("contacts")
         .insert({
           ...newContact,
+          owner_id: owner_id,
           ativo: true,
           whatsapp_validated: false
         })

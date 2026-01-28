@@ -25,6 +25,26 @@ serve(async (req) => {
       throw new Error("Email e senha são obrigatórios.");
     }
 
+    // 2.5 Buscar o owner_id do criador para manter o multi-tenancy
+    let owner_id = null;
+    if (created_by) {
+      const { data: creatorProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id, owner_id, role")
+        .eq("id", created_by)
+        .single();
+
+      if (creatorProfile) {
+        // Se o criador for superadmin e estiver criando um admin, o admin é o seu próprio owner (owner_id = null)
+        // Se o criador for admin/supervisor/agente, o novo usuário herda o owner do criador ou o próprio criador
+        if (creatorProfile.role === 'superadmin' && role === 'admin') {
+          owner_id = null; // Novo tenant
+        } else {
+          owner_id = creatorProfile.owner_id || creatorProfile.id;
+        }
+      }
+    }
+
     // 3. Criar o usuário no sistema de Autenticação (Auth)
     // DICA: Passamos tudo no user_metadata para que o Trigger 'handle_new_user'
     // já possa preencher a tabela profiles corretamente na hora da criação.
@@ -36,7 +56,8 @@ serve(async (req) => {
         nome: nome,
         role: role || 'agente',
         permissions: permissions || {},
-        created_by: created_by || null
+        created_by: created_by || null,
+        owner_id: owner_id
       }
     });
 
@@ -47,11 +68,11 @@ serve(async (req) => {
 
     if (userData.user) {
       const newUserId = userData.user.id;
-      console.log(`Usuário criado no Auth: ${newUserId}`);
+      console.log(`Usuário criado no Auth: ${newUserId}, Owner: ${owner_id}`);
 
       // 4. Garantir atualização do Perfil (profiles)
       // Mesmo que o trigger já tenha rodado, fazemos um UPDATE explícito aqui
-      // para garantir que role, permissions e created_by fiquem salvos corretamente
+      // para garantir que role, permissions, created_by e owner_id fiquem salvos corretamente
       // na tabela profiles, caso o trigger tenha falhado em pegar os metadados.
 
       const { error: profileError } = await supabaseAdmin
@@ -61,6 +82,7 @@ serve(async (req) => {
           role: role || 'agente',       // <--- Agora salvamos direto no profile
           permissions: permissions || {}, // <--- Agora salvamos direto no profile
           created_by: created_by || null,
+          owner_id: owner_id,             // <--- Multi-tenancy
           ativo: true,
           must_change_password: true // Novos usuários precisam trocar a senha
         })
