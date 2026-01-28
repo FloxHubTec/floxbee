@@ -4,6 +4,13 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -15,23 +22,27 @@ export interface ConversationFilters {
     status: 'all' | 'ativo' | 'pendente' | 'concluido';
     assignment: 'all' | 'mine' | 'unassigned';
     botStatus: 'all' | 'active' | 'inactive';
+    tag: string;
 }
 
 interface FilterPopoverProps {
     filters: ConversationFilters;
     onFiltersChange: (filters: ConversationFilters) => void;
     currentUserId?: string;
+    availableTags?: string[];
 }
 
 export const FilterPopover: React.FC<FilterPopoverProps> = ({
     filters,
     onFiltersChange,
     currentUserId,
+    availableTags = [],
 }) => {
     const hasActiveFilters =
         filters.status !== 'all' ||
         filters.assignment !== 'all' ||
-        filters.botStatus !== 'all';
+        filters.botStatus !== 'all' ||
+        filters.tag !== 'all';
 
     const handleFilterChange = (key: keyof ConversationFilters, value: string) => {
         onFiltersChange({
@@ -45,6 +56,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
             status: 'all',
             assignment: 'all',
             botStatus: 'all',
+            tag: 'all',
         });
     };
 
@@ -143,32 +155,24 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
                         </RadioGroup>
                     </div>
 
-                    {/* Filtro de IA */}
+                    {/* Filtro de Tags (Extraído das conversas) */}
                     <div className="space-y-2">
-                        <Label className="text-sm font-medium">Inteligência Artificial</Label>
-                        <RadioGroup
-                            value={filters.botStatus}
-                            onValueChange={(value) => handleFilterChange('botStatus', value)}
+                        <Label className="text-sm font-medium">Tag</Label>
+                        <Select
+                            value={filters.tag}
+                            onValueChange={(value) => handleFilterChange('tag', value)}
                         >
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="all" id="bot-all" />
-                                <Label htmlFor="bot-all" className="font-normal cursor-pointer">
-                                    Todas
-                                </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="active" id="bot-active" />
-                                <Label htmlFor="bot-active" className="font-normal cursor-pointer">
-                                    IA Ativa
-                                </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="inactive" id="bot-inactive" />
-                                <Label htmlFor="bot-inactive" className="font-normal cursor-pointer">
-                                    IA Inativa
-                                </Label>
-                            </div>
-                        </RadioGroup>
+                            <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Filtrar por tag" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas as tags</SelectItem>
+                                {/* As tags reais virão via props ou hook */}
+                                {availableTags.map(tag => (
+                                    <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Resumo dos filtros ativos */}
@@ -189,6 +193,11 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
                                 {filters.botStatus !== 'all' && (
                                     <Badge variant="secondary" className="text-xs">
                                         IA {filters.botStatus === 'active' ? 'Ativa' : 'Inativa'}
+                                    </Badge>
+                                )}
+                                {filters.tag !== 'all' && (
+                                    <Badge variant="secondary" className="text-xs">
+                                        Tag: {filters.tag}
                                     </Badge>
                                 )}
                             </div>

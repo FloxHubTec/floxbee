@@ -127,7 +127,28 @@ serve(async (req) => {
     const body: ChatRequest = await req.json();
     const { messages, context, stream = false } = body;
 
-    // Detect owner_id
+    // Verify if bot is active for this conversation
+    if (context?.conversation_id) {
+      const { data: conv, error: convError } = await supabase
+        .from('conversations')
+        .select('is_bot_active')
+        .eq('id', context.conversation_id)
+        .maybeSingle();
+
+      if (convError) console.error("Error checking bot status:", convError);
+
+      if (conv && conv.is_bot_active === false) {
+        console.log("Bot is inactive for conversation:", context.conversation_id);
+        return new Response(
+          JSON.stringify({
+            message: "",
+            status: "bot_inactive",
+            info: "AI response skipped because is_bot_active is false"
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
     let ownerId = context?.owner_id;
     if (!ownerId) {
       const authParts = authHeader.split(' ');

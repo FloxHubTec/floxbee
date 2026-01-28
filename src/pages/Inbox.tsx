@@ -101,6 +101,7 @@ const Inbox: React.FC = () => {
     status: 'all',
     assignment: 'all',
     botStatus: 'all',
+    tag: 'all',
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -123,6 +124,12 @@ const Inbox: React.FC = () => {
   const { uploadFile, isUploading, getFileType, allowedTypes } = useFileUpload();
 
   const [newTag, setNewTag] = useState('');
+
+  // Extrair todas as tags únicas das conversas carregadas
+  const availableTags = useMemo(() => {
+    const allTags = conversations.flatMap(conv => conv.contact?.tags || []);
+    return Array.from(new Set(allTags)).sort();
+  }, [conversations]);
 
   // Filtragem e busca COMBINADAS
   const filteredConversations = useMemo(() => {
@@ -153,6 +160,11 @@ const Inbox: React.FC = () => {
       result = result.filter(conv => (conv as any).is_bot_active === true);
     } else if (filters.botStatus === 'inactive') {
       result = result.filter(conv => (conv as any).is_bot_active === false || !(conv as any).is_bot_active);
+    }
+
+    // 5. Filtro de Tag
+    if (filters.tag !== 'all') {
+      result = result.filter(conv => conv.contact?.tags?.includes(filters.tag));
     }
 
     return result;
@@ -215,21 +227,6 @@ const Inbox: React.FC = () => {
         attachmentType: fileToSend?.type,
         attachmentName: fileToSend?.name,
       });
-
-      // Se o bot estiver ativo, aciona a IA
-      if ((selectedConversation as any).is_bot_active && !fileToSend) {
-        await sendAIMessage.mutateAsync({
-          conversationId: selectedConversation.id,
-          userMessage: content,
-          context: {
-            servidor_nome: selectedConversation.contact?.nome,
-            servidor_matricula: (selectedConversation.contact as any)?.matricula,
-            servidor_secretaria: (selectedConversation.contact as any)?.secretaria,
-            contact_id: selectedConversation.contact?.id,
-            conversation_id: selectedConversation.id,
-          },
-        });
-      }
     } catch (error) {
       // Erro já tratado no hook com toast
     }
@@ -499,6 +496,7 @@ const Inbox: React.FC = () => {
                 filters={filters}
                 onFiltersChange={setFilters}
                 currentUserId={profile?.id}
+                availableTags={availableTags}
               />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -507,7 +505,7 @@ const Inbox: React.FC = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setFilters({ status: 'all', assignment: 'all', botStatus: 'all' })}>
+                  <DropdownMenuItem onClick={() => setFilters({ status: 'all', assignment: 'all', botStatus: 'all', tag: 'all' })}>
                     Limpar Filtros
                   </DropdownMenuItem>
                 </DropdownMenuContent>

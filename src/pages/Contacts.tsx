@@ -15,6 +15,7 @@ import {
   Loader2,
   ShieldCheck,
   Download,
+  Tag,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { ContactForm } from "@/components/contacts/ContactForm";
+import { TagManager } from "@/components/contacts/TagManager";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -79,6 +81,7 @@ const Contacts: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deleteConfirmContact, setDeleteConfirmContact] = useState<Contact | null>(null);
@@ -234,6 +237,16 @@ const Contacts: React.FC = () => {
             >
               {isValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
               <span className="hidden sm:inline">Validar</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 shrink-0 border-blue-500/30 text-blue-600 hover:bg-blue-50"
+              onClick={() => setIsTagManagerOpen(true)}
+            >
+              <Tag className="w-4 h-4" />
+              <span className="hidden sm:inline">Gerenciar Tags</span>
             </Button>
 
             <Button
@@ -531,6 +544,10 @@ const Contacts: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <TagManager
+        open={isTagManagerOpen}
+        onOpenChange={setIsTagManagerOpen}
+      />
     </div>
   );
 };
