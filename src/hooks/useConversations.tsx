@@ -393,3 +393,26 @@ export const useToggleBotStatus = () => {
     }
   });
 };
+
+// --- 10. DELETAR CONVERSA ---
+export const useDeleteConversation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from("conversations")
+        .delete()
+        .eq("id", conversationId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success("Conversa excluída com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir conversa: " + error.message);
+    }
+  });
+};

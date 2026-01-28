@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   UserCircle,
   Power,
+  Trash2,
   ArrowLeft,
   RotateCcw
 } from 'lucide-react';
@@ -43,6 +44,7 @@ import {
   useTransferConversation,
   useToggleBotStatus,
   useMarkAsRead,
+  useDeleteConversation,
   type ConversationWithContact
 } from '@/hooks/useConversations';
 import { useAuth } from '@/hooks/useAuth';
@@ -62,6 +64,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from '@/integrations/supabase/client';
 
 const Inbox: React.FC = () => {
@@ -78,6 +90,7 @@ const Inbox: React.FC = () => {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [conversationSummary, setConversationSummary] = useState('');
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Estado de filtros
   const [filters, setFilters] = useState<ConversationFilters>({
@@ -100,6 +113,7 @@ const Inbox: React.FC = () => {
   const transferConversation = useTransferConversation();
   const toggleBotStatus = useToggleBotStatus();
   const markAsRead = useMarkAsRead();
+  const deleteConversation = useDeleteConversation();
   const { uploadFile, isUploading, getFileType, allowedTypes } = useFileUpload();
 
   // Filtragem e busca COMBINADAS
@@ -281,6 +295,17 @@ const Inbox: React.FC = () => {
       toast.error('Erro ao gerar resumo');
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedConversation) return;
+    try {
+      await deleteConversation.mutateAsync(selectedConversation.id);
+      setSelectedConversation(null);
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      // Erro já tratado no hook
     }
   };
 
@@ -544,6 +569,13 @@ const Inbox: React.FC = () => {
                     <DropdownMenuItem onClick={handleToggleBot} className="gap-2">
                       <Power className={cn("w-4 h-4", (selectedConversation as any).is_bot_active ? "text-green-500" : "text-muted-foreground")} />
                       {(selectedConversation as any).is_bot_active ? 'Desativar IA' : 'Ativar IA'}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10"
+                    >
+                      <Trash2 className="w-4 h-4" /> Apagar Conversa
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -812,6 +844,34 @@ const Inbox: React.FC = () => {
         onTransfer={handleTransfer}
         isLoading={transferConversation.isPending}
       />
+
+      {/* Confirmação de Exclusão */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar conversa permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação excluirá todas as mensagens e o histórico desta conversa.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConversation}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteConversation.isPending}
+            >
+              {deleteConversation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Apagar Conversa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

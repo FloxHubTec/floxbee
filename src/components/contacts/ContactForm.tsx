@@ -205,13 +205,14 @@ export const ContactForm: React.FC<ContactFormProps> = ({
                 control={control}
                 render={({ field }) => (
                   <Select
-                    value={field.value || undefined}
-                    onValueChange={field.onChange}
+                    value={field.value || "__none__"}
+                    onValueChange={(val) => field.onChange(val === "__none__" ? null : val)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Nenhum departamento" />
+                      <SelectValue placeholder="Selecione departamento" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__none__">Nenhum</SelectItem>
                       {departments.map((dept) => (
                         <SelectItem key={dept.id} value={dept.id}>
                           {dept.name}
@@ -259,8 +260,8 @@ export const ContactForm: React.FC<ContactFormProps> = ({
               {tags.map((tag) => (
                 <Badge key={tag} variant="secondary" className="gap-1 px-2 py-1">
                   {tag}
-                  <X 
-                    className="w-3 h-3 cursor-pointer hover:text-destructive" 
+                  <X
+                    className="w-3 h-3 cursor-pointer hover:text-destructive"
                     onClick={() => handleRemoveTag(tag)}
                   />
                 </Badge>

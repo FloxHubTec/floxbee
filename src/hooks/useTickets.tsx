@@ -97,7 +97,7 @@ export const useCreateTicket = () => {
       department_id?: string | null; // Tipagem simples
     }) => {
       const prioridade = ticket.prioridade || "media";
-      
+
       console.log("Criando Ticket - Payload:", ticket); // Debug: Verifique no console se department_id tem valor
 
       const { data, error } = await supabase
@@ -179,7 +179,7 @@ export const useUpdateTicket = () => {
       console.log("Atualizando Ticket - Payload:", data); // Debug
 
       const updateData: any = { ...data };
-      
+
       if (data.prioridade) {
         updateData.sla_deadline = calculateSLADeadline(data.prioridade);
       }
@@ -288,9 +288,42 @@ export const useAgentes = () => {
   return useQuery({
     queryKey: ["agentes"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("ativo", true);
+      // 1. Pegar o usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      // 2. Pegar o perfil do usuário atual
+      const { data: myProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!myProfile) return [];
+
+      // 3. Buscar todos os perfis ativos (o RLS já filtra por owner_id se aplicável)
+      const { data: allProfiles, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("ativo", true);
+
       if (error) throw error;
-      return data;
+
+      // 4. Filtrar para mostrar APENAS 'supervisor' e 'agente' (Operacional)
+      const operationalRoles = ['supervisor', 'agente'];
+
+      // Se for superadmin, vê todos os operacionais do sistema
+      if (myProfile.role === 'superadmin') {
+        return allProfiles.filter(p => operationalRoles.includes(p.role));
+      }
+
+      // Se não for superadmin, vê operacionais vinculados à sua hierarquia
+      return allProfiles.filter(p => {
+        const isOperational = operationalRoles.includes(p.role);
+        const inHierarchy = p.id === myProfile.id || p.created_by === myProfile.id || myProfile.created_by === p.id;
+
+        return isOperational && inHierarchy;
+      });
     },
   });
 };
