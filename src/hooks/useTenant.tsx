@@ -34,15 +34,16 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       root.style.setProperty('--sidebar-primary', primary);
       root.style.setProperty('--accent', accent);
 
-      // Se houver logo customizado, podemos atualizar o favicon também (opcional)
-      if (config.branding.faviconUrl) {
+      // Atualizar favicon (usa faviconUrl ou logoUrl como fallback)
+      const faviconTarget = config.branding.faviconUrl || config.branding.logoUrl;
+      if (faviconTarget) {
         let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
         if (!link) {
           link = document.createElement('link');
           link.rel = 'icon';
           document.getElementsByTagName('head')[0].appendChild(link);
         }
-        link.href = config.branding.faviconUrl;
+        link.href = faviconTarget;
       }
     }
   }, [config.branding]);
