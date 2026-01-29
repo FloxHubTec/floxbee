@@ -145,9 +145,11 @@ export default function ModuleSettings() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Meus módulos (Globais)</SelectItem>
-                                {admins.map(admin => (
-                                    <SelectItem key={admin.id} value={admin.id}>{admin.nome}</SelectItem>
-                                ))}
+                                {[...admins]
+                                    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                                    .map(admin => (
+                                        <SelectItem key={admin.id} value={admin.id}>{admin.nome}</SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </CardContent>

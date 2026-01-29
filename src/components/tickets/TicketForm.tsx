@@ -273,11 +273,13 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="__none__">Nenhum</SelectItem>
-                          {contacts.map((contact) => (
-                            <SelectItem key={contact.id} value={contact.id}>
-                              {contact.nome}
-                            </SelectItem>
-                          ))}
+                          {[...contacts]
+                            .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                            .map((contact) => (
+                              <SelectItem key={contact.id} value={contact.id}>
+                                {contact.nome}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -332,23 +334,25 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                                     />
                                     Não atribuído
                                   </CommandItem>
-                                  {agentes.map((agente) => (
-                                    <CommandItem
-                                      key={agente.id}
-                                      value={agente.nome}
-                                      onSelect={() => {
-                                        field.onChange(agente.id);
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          agente.id === field.value ? "opacity-100" : "opacity-0"
-                                        )}
-                                      />
-                                      {agente.nome}
-                                    </CommandItem>
-                                  ))}
+                                  {[...agentes]
+                                    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                                    .map((agente) => (
+                                      <CommandItem
+                                        key={agente.id}
+                                        value={agente.nome}
+                                        onSelect={() => {
+                                          field.onChange(agente.id);
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-4 w-4",
+                                            agente.id === field.value ? "opacity-100" : "opacity-0"
+                                          )}
+                                        />
+                                        {agente.nome}
+                                      </CommandItem>
+                                    ))}
                                 </CommandGroup>
                               </CommandList>
                             </Command>
@@ -366,11 +370,13 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="__none__">Não atribuído</SelectItem>
-                            {agentes.map((agente) => (
-                              <SelectItem key={agente.id} value={agente.id}>
-                                {agente.nome}
-                              </SelectItem>
-                            ))}
+                            {[...agentes]
+                              .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                              .map((agente) => (
+                                <SelectItem key={agente.id} value={agente.id}>
+                                  {agente.nome}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       )}
@@ -401,9 +407,11 @@ export const TicketForm: React.FC<TicketFormProps> = ({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="__none__">Nenhum</SelectItem>
-                        {departamentos.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                        ))}
+                        {[...departamentos]
+                          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                          .map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

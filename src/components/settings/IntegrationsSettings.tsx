@@ -237,9 +237,11 @@ export default function IntegrationsSettings() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Minhas integrações</SelectItem>
-                                {admins.map(admin => (
-                                    <SelectItem key={admin.id} value={admin.id}>{admin.nome}</SelectItem>
-                                ))}
+                                {[...admins]
+                                    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                                    .map(admin => (
+                                        <SelectItem key={admin.id} value={admin.id}>{admin.nome}</SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </CardContent>
