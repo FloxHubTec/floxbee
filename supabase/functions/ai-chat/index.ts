@@ -240,19 +240,19 @@ serve(async (req) => {
         if (ownerId) {
           const { data: depts } = await supabase
             .from('departments')
-            .select('name')
+            .select('id, name')
             .eq('owner_id', ownerId)
             .eq('active', true);
 
           if (depts && depts.length > 0) {
-            activeDeptsStr = depts.map(d => d.name).join(', ');
+            activeDeptsStr = depts.map(d => `${d.name} (UUID: ${d.id})`).join(', ');
           }
         }
 
         // --- NEW: Inform AI about Business Rules/Entity ---
         personalizedPrompt += `\n\n--- REGRAS DE NEGÓCIO E AMBIENTE ---\nEste sistema é um CRM focado em ${entityConfig.entityNamePlural || "servidores"}.
 A entidade principal é chamada de "${entityConfig.entityName || "servidor"}".
-Departamentos ativos (consulte esta lista para encaminhamentos e tickets): ${activeDeptsStr}.
+Departamentos ativos (use o UUID para abrir tickets): ${activeDeptsStr}.
 --------------------------------------`;
       }
     }
@@ -324,9 +324,9 @@ O usuário com quem você está falando agora forneceu os seguintes dados:
             owner_id: ownerId,
             titulo: args.titulo,
             descricao: args.descricao,
-            prioridade: args.prioridade,
             department_id: args.department_id,
-            status: 'aberto'
+            prioridade: args.prioridade || 'media',
+            status: 'aberto_ia'
           });
           internalActions.push(`Ticket criado: ${args.titulo}`);
         }
@@ -346,9 +346,62 @@ O usuário com quem você está falando agora forneceu os seguintes dados:
         }
 
         if (functionName === "transferir_atendimento" && context?.conversation_id) {
-          await supabase.from('conversations').update({ is_bot_active: false, status: 'aguardando' }).eq('id', context.conversation_id);
+          // --- Round-Robin Logic ---
+          let assignedTo = null;
+          let agentName = "Atendente";
+
+          if (ownerId) {
+            // 1. Fetch available agents
+            const { data: agents } = await supabase
+              .from('profiles')
+              .select('id, nome')
+              .eq('owner_id', ownerId)
+              .eq('ativo', true)
+              .in('role', ['agente', 'supervisor'])
+              .order('id');
+
+            if (agents && agents.length > 0) {
+              // 2. Find who was the last assigned
+              const { data: lastConv } = await supabase
+                .from('conversations')
+                .select('assigned_to')
+                .eq('owner_id', ownerId)
+                .not('assigned_to', 'is', null)
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              let nextIndex = 0;
+              if (lastConv) {
+                const lastIndex = agents.findIndex(a => a.id === lastConv.assigned_to);
+                nextIndex = (lastIndex + 1) % agents.length;
+              }
+
+              const chosenAgent = agents[nextIndex];
+              assignedTo = chosenAgent.id;
+              agentName = chosenAgent.nome;
+            }
+          }
+
+          const summary = `Conversa transferida para ${agentName}. Motivo: ${args.motivo}. Usuário: ${context.servidor_nome || 'Desconhecido'} (${context.servidor_matricula || 'Sem matrícula'}). Demanda: ${context.demanda_atual || 'Não especificada'}.`;
+
+          // Nota interna para o atendente
+          await supabase.from('messages').insert({
+            conversation_id: context.conversation_id,
+            content: `📢 [SISTEMA] ${summary}`,
+            sender_type: "ia",
+            message_type: "text"
+          });
+
+          await supabase.from('conversations').update({
+            is_bot_active: false,
+            status: 'aguardando',
+            assigned_to: assignedTo,
+            updated_at: new Date().toISOString()
+          }).eq('id', context.conversation_id);
+
           needsHumanTransfer = true;
-          internalActions.push(`Transferido: ${args.motivo}`);
+          internalActions.push(`Transferido para ${agentName}: ${args.motivo}`);
         }
       }
 

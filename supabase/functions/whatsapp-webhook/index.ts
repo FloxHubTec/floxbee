@@ -238,11 +238,13 @@ serve(async (req) => {
               // CREATE OR GET CONVERSATION
               // ==========================================
 
+              // Find the most recent conversation for this contact
               const { data: existingConversation, error: convError } = await supabase
                 .from("conversations")
-                .select("id, is_bot_active")
+                .select("id, is_bot_active, status")
                 .eq("contact_id", contactId)
-                .in("status", ["ativo", "aguardando"])
+                .order("created_at", { ascending: false })
+                .limit(1)
                 .maybeSingle();
 
               let conversationId: string;
@@ -279,13 +281,24 @@ serve(async (req) => {
                 conversationId = existingConversation.id;
                 isBotActive = existingConversation.is_bot_active ?? true;
 
-                // Update conversation
+                // Update conversation - Re-open if concluded
+                const updateData: any = {
+                  last_message_at: new Date().toISOString(),
+                  unread_count: 1,
+                  updated_at: new Date().toISOString()
+                };
+
+                if (existingConversation.status === 'concluido') {
+                  updateData.status = 'ativo';
+                  updateData.is_bot_active = true;
+                  updateData.assigned_to = null;
+                  isBotActive = true;
+                  console.log("Re-opening concluded conversation:", conversationId);
+                }
+
                 await supabase
                   .from("conversations")
-                  .update({
-                    last_message_at: new Date().toISOString(),
-                    unread_count: 1,
-                  })
+                  .update(updateData)
                   .eq("id", conversationId);
               }
 

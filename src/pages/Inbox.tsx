@@ -239,7 +239,7 @@ const Inbox: React.FC = () => {
         conversationId: selectedConversation.id,
         content,
         senderType: 'user', // 'user' representa o agente no nosso hook
-        senderId: user?.id,
+        senderId: profile?.id,
         attachmentUrl: fileToSend?.url,
         attachmentType: fileToSend?.type,
         attachmentName: fileToSend?.name,
@@ -252,7 +252,7 @@ const Inbox: React.FC = () => {
   const handleResolve = async () => {
     if (!selectedConversation) return;
     await resolveConversation.mutateAsync(selectedConversation.id);
-    // Não fecha a conversa, apenas atualiza o status
+    // O hook ja atualiza o status para concluído e reativa a IA no banco
   };
 
   const handleReopen = async () => {
@@ -306,12 +306,7 @@ const Inbox: React.FC = () => {
       conversationId: selectedConversation.id,
       isActive: !currentBotState,
     });
-    // Atualiza estado local para feedback imediato
-    setSelectedConversation({
-      ...selectedConversation,
-      // @ts-ignore
-      is_bot_active: !currentBotState,
-    });
+    // O reload acontece via invalidação de query no hook e sync no useEffect
   };
 
 

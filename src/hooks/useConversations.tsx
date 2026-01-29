@@ -234,9 +234,12 @@ export const useSendMessage = () => {
         updateData.unread_count = 0;
       }
 
-      // NOVO: Se o remetente for um humano (user/agente), desativa a IA automaticamente
+      // NOVO: Se o remetente for um humano (user/agente), desativa a IA automaticamente e vincula à conversa
       if (['user', 'agente'].includes(senderType)) {
         updateData.is_bot_active = false;
+        if (senderId) {
+          updateData.assigned_to = senderId;
+        }
       }
 
       const { error: convError } = await supabase
@@ -297,7 +300,9 @@ export const useResolveConversation = () => {
         .from("conversations")
         .update({
           status: "concluido",
-          resolved_at: new Date().toISOString()
+          resolved_at: new Date().toISOString(),
+          is_bot_active: true,
+          assigned_to: null
         })
         .eq("id", conversationId);
 
@@ -396,6 +401,7 @@ export const useToggleBotStatus = () => {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages", variables.conversationId] });
       toast.success(variables.isActive ? "IA ativada" : "IA pausada");
     },
     onError: (error) => {
