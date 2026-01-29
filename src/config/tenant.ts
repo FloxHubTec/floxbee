@@ -56,6 +56,12 @@ export interface TenantAIConfig {
 
   // Base de conhecimento (texto livre para contexto extra)
   knowledgeBase?: string;
+
+  // --- NOVAS CONFIGURAÇÕES AVANÇADAS ---
+  messageBufferEnabled?: boolean;
+  messageBufferTimeSeconds?: number;
+  audioTranscriptionEnabled?: boolean;
+  agentInactivityTimeoutMinutes?: number;
 }
 
 export interface TenantFeatures {
@@ -163,6 +169,10 @@ Regras importantes:
       "Prazos e procedimentos administrativos",
     ],
     knowledgeBase: "",
+    messageBufferEnabled: true,
+    messageBufferTimeSeconds: 10,
+    audioTranscriptionEnabled: true,
+    agentInactivityTimeoutMinutes: 30,
   },
 
   features: {

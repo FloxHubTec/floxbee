@@ -139,6 +139,20 @@ serve(async (req) => {
                 contactName: contactName,
               });
 
+              // Fetch System Settings for this owner to check AI features
+              const { data: settingsData } = await supabase
+                .from("system_settings")
+                .select("value")
+                .eq("owner_id", ownerId)
+                .eq("key", "tenant_config")
+                .maybeSingle();
+
+              const tenantConfig = settingsData?.value || {};
+              const aiConfig = tenantConfig.ai || {};
+              const audioEnabled = aiConfig.audioTranscriptionEnabled ?? true;
+              const bufferEnabled = aiConfig.messageBufferEnabled ?? true;
+              const bufferTime = aiConfig.messageBufferTimeSeconds ?? 10;
+
               let automationTriggered = false;
 
               // Extract message content
@@ -158,6 +172,46 @@ serve(async (req) => {
                 case "audio":
                   messageContent = "[Áudio recebido]";
                   attachmentType = "audio";
+
+                  if (audioEnabled && message.audio?.id) {
+                    try {
+                      console.log("Transcribing audio:", message.audio.id);
+                      // 1. Get media URL from WhatsApp
+                      const whatsappToken = integration?.config?.access_token || Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+                      const mediaResponse = await fetch(`https://graph.facebook.com/v18.0/${message.audio.id}`, {
+                        headers: { "Authorization": `Bearer ${whatsappToken}` }
+                      });
+                      const mediaData = await mediaResponse.json();
+
+                      if (mediaData.url) {
+                        // 2. Download media file
+                        const fileResponse = await fetch(mediaData.url, {
+                          headers: { "Authorization": `Bearer ${whatsappToken}` }
+                        });
+                        const audioBlob = await fileResponse.blob();
+
+                        // 3. Transcribe with Whisper
+                        const formData = new FormData();
+                        formData.append("file", audioBlob, "audio.ogg");
+                        formData.append("model", "whisper-1");
+                        formData.append("language", "pt");
+
+                        const whisperResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                          method: "POST",
+                          headers: { "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}` },
+                          body: formData
+                        });
+
+                        const whisperData = await whisperResponse.json();
+                        if (whisperData.text) {
+                          messageContent = `[Áudio Transcrito]: ${whisperData.text}`;
+                          console.log("Transcription success:", whisperData.text);
+                        }
+                      }
+                    } catch (transError) {
+                      console.error("Error transcribing audio:", transError);
+                    }
+                  }
                   break;
                 case "document":
                   messageContent = `[Documento: ${message.document?.filename}]`;
@@ -393,7 +447,7 @@ serve(async (req) => {
               // SAVE INCOMING MESSAGE
               // ==========================================
 
-              const { error: msgError } = await supabase
+              const { data: savedMsg, error: msgError } = await supabase
                 .from("messages")
                 .insert({
                   conversation_id: conversationId,
@@ -406,7 +460,9 @@ serve(async (req) => {
                     wa_timestamp: message.timestamp,
                     wa_contact_name: contactName,
                   },
-                });
+                })
+                .select("id")
+                .single();
 
               if (msgError) {
                 console.error("Error saving message:", msgError);
@@ -418,9 +474,28 @@ serve(async (req) => {
               // TRIGGER AI RESPONSE IF BOT IS ACTIVE
               // ==========================================
 
-              if (isBotActive && message.type === "text" && messageContent && !automationTriggered) {
+              if (isBotActive && (message.type === "text" || message.type === "audio") && messageContent && !automationTriggered) {
                 try {
-                  // Fetch conversation history
+                  // Buffer e Histórico
+                  if (bufferEnabled) {
+                    console.log(`Buffer enabled. Waiting ${bufferTime}s...`);
+                    await new Promise(resolve => setTimeout(resolve, bufferTime * 1000));
+
+                    // Check if this is still the last message from user to avoid multiple AI triggers
+                    const { data: latestMsg } = await supabase
+                      .from("messages")
+                      .select("id")
+                      .eq("conversation_id", conversationId)
+                      .in("sender_type", ["contact", "servidor"])
+                      .order("created_at", { ascending: false })
+                      .limit(1)
+                      .maybeSingle();
+
+                    if (latestMsg && latestMsg.id !== savedMsg?.id) {
+                      console.log("Newer message found after buffer. Skipping AI trigger for this instance.");
+                      return;
+                    }
+                  }
                   const { data: history } = await supabase
                     .from("messages")
                     .select("content, sender_type")

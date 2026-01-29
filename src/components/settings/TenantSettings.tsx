@@ -494,9 +494,60 @@ export default function TenantSettings() {
                 <textarea className="w-full min-h-[150px] p-3 border rounded-lg bg-background font-mono text-sm" value={localConfig.ai.systemPromptTemplate} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, systemPromptTemplate: e.target.value } })} />
               </div>
 
-              <div className="space-y-2">
-                <Label>Base de Conhecimento</Label>
-                <textarea className="w-full min-h-[150px] p-3 border rounded-lg bg-background text-sm" value={localConfig.ai.knowledgeBase || ""} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, knowledgeBase: e.target.value } })} placeholder="Regras de negócio, detalhes da organização..." />
+              <div className="space-y-4 pt-4 border-t">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" /> Configurações Avançadas
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/10">
+                      <div className="space-y-0.5">
+                        <Label>Buffer de Mensagens</Label>
+                        <p className="text-xs text-muted-foreground">Agrupar mensagens rápidas do usuário</p>
+                      </div>
+                      <Switch
+                        checked={localConfig.ai.messageBufferEnabled}
+                        onCheckedChange={v => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, messageBufferEnabled: v } })}
+                      />
+                    </div>
+                    {localConfig.ai.messageBufferEnabled && (
+                      <div className="space-y-2 px-3">
+                        <Label className="text-xs">Tempo de Janela (segundos)</Label>
+                        <Input
+                          type="number"
+                          value={localConfig.ai.messageBufferTimeSeconds}
+                          onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, messageBufferTimeSeconds: parseInt(e.target.value) || 0 } })}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/10">
+                      <div className="space-y-0.5">
+                        <Label>Transcrição de Áudio</Label>
+                        <p className="text-xs text-muted-foreground">Converter voz para texto automaticamente</p>
+                      </div>
+                      <Switch
+                        checked={localConfig.ai.audioTranscriptionEnabled}
+                        onCheckedChange={v => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, audioTranscriptionEnabled: v } })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 p-3 border rounded-lg bg-muted/10">
+                    <div className="space-y-0.5 mb-2">
+                      <Label>Timeout de Inatividade (Minutos)</Label>
+                      <p className="text-xs text-muted-foreground">Tempo para IA reassumir o atendimento</p>
+                    </div>
+                    <Input
+                      type="number"
+                      value={localConfig.ai.agentInactivityTimeoutMinutes}
+                      onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, agentInactivityTimeoutMinutes: parseInt(e.target.value) || 0 } })}
+                    />
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
