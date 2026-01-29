@@ -33,16 +33,16 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       root.style.setProperty('--ring', primary);
       root.style.setProperty('--sidebar-primary', primary);
       root.style.setProperty('--accent', accent);
-      
+
       // Se houver logo customizado, podemos atualizar o favicon também (opcional)
       if (config.branding.faviconUrl) {
-         let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-         if (!link) {
-           link = document.createElement('link');
-           link.rel = 'icon';
-           document.getElementsByTagName('head')[0].appendChild(link);
-         }
-         link.href = config.branding.faviconUrl;
+        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = config.branding.faviconUrl;
       }
     }
   }, [config.branding]);
@@ -51,14 +51,15 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
 
-      // Lógica:
-      // 1. Se sou Admin, busco MINHA config.
-      // 2. Se sou Agente, busco a config do meu CHEFE (profile.created_by).
+      // Lógica de Isolamento:
+      // 1. Admins e Superadmins SEMPRE usam sua própria config (Admin individual).
+      // 2. Agentes e outros usam a config de quem os criou (Branding do Gestor).
 
       let targetOwnerId = profile?.id;
+      const isManager = profile?.role === 'admin' || profile?.role === 'superadmin';
 
-      if (profile?.created_by) {
-        // Se eu fui criado por alguém, esse alguém é meu admin/gestor
+      if (!isManager && profile?.created_by) {
+        // Se NÃO sou gestor e fui criado por alguém, uso a marca do meu gestor
         targetOwnerId = profile.created_by;
       }
 
