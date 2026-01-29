@@ -16,7 +16,6 @@ import QRCodes from "./pages/QRCodes";
 import LandingPages from "./pages/LandingPages";
 import Templates from "./pages/Templates";
 import Automations from "./pages/Automations";
-import AutomationsPage from "./pages/AutomationsPage";
 import AIService from "./pages/AIService";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
@@ -66,7 +65,6 @@ const App = () => (
                 <Route path="/landing-pages" element={<LandingPages />} />
                 <Route path="/templates" element={<Templates />} />
                 <Route path="/automations" element={<Automations />} />
-                <Route path="/automations-dashboard" element={<AutomationsPage />} />
                 <Route path="/ai-service" element={<AIService />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/api-docs" element={<ApiDocs />} />

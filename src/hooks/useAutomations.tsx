@@ -51,7 +51,12 @@ export function useAutomations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("automation_rules")
-        .select("*")
+        .select(`
+          *,
+          message_templates (
+            nome
+          )
+        `)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -292,39 +297,61 @@ export const useAutomationStats = () => {
   return useQuery({
     queryKey: ['automation-stats'],
     queryFn: async () => {
-      // Get total rules
-      const { count: totalRules } = await supabase
-        .from('automation_rules')
-        .select('*', { count: 'exact', head: true });
+      try {
+        // Get total rules
+        const { count: totalRules } = await supabase
+          .from('automation_rules')
+          .select('*', { count: 'exact', head: true });
 
-      // Get active rules
-      const { count: activeRules } = await supabase
-        .from('automation_rules')
-        .select('*', { count: 'exact', head: true })
-        .eq('ativo', true);
+        // Get active rules
+        const { count: activeRules } = await supabase
+          .from('automation_rules')
+          .select('*', { count: 'exact', head: true })
+          .eq('ativo', true);
 
-      // Get logs from last 30 days
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // Get logs from last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { data: recentLogs } = await supabase
-        .from('automation_logs')
-        .select('status')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        const { data: recentLogs, error: logsError } = await supabase
+          .from('automation_logs')
+          .select('status')
+          .gte('created_at', thirtyDaysAgo.toISOString());
 
-      const sent = recentLogs?.filter(l => l.status === 'enviado' || l.status === 'sucesso').length || 0;
-      const failed = recentLogs?.filter(l => l.status === 'erro').length || 0;
+        if (logsError) {
+          console.error("Erro ao buscar logs para estatísticas:", logsError);
+        }
 
-      // Get today's birthdays count
-      const { data: birthdays } = await supabase.rpc('get_todays_birthdays').catch(() => ({ data: [] }));
+        const logs = Array.isArray(recentLogs) ? recentLogs : [];
+        const sent = logs.filter(l => l.status === 'enviado' || l.status === 'sucesso' || l.status === 'success' || l.status === 'sent').length || 0;
+        const failed = logs.filter(l => l.status === 'erro' || l.status === 'error' || l.status === 'falha' || l.status === 'failed').length || 0;
 
-      return {
-        totalRules: totalRules || 0,
-        activeRules: activeRules || 0,
-        sentLast30Days: sent,
-        failedLast30Days: failed,
-        birthdaysToday: Array.isArray(birthdays) ? birthdays.length : 0,
-      };
+        // Get today's birthdays count
+        let birthdaysTodayCount = 0;
+        try {
+          const { data: birthdays } = await supabase.rpc('get_todays_birthdays');
+          birthdaysTodayCount = Array.isArray(birthdays) ? birthdays.length : 0;
+        } catch (e) {
+          console.warn("Erro ao buscar aniversariantes RPC:", e);
+        }
+
+        return {
+          totalRules: totalRules || 0,
+          activeRules: activeRules || 0,
+          sentLast30Days: sent,
+          failedLast30Days: failed,
+          birthdaysToday: birthdaysTodayCount,
+        };
+      } catch (error) {
+        console.error("Erro geral em useAutomationStats:", error);
+        return {
+          totalRules: 0,
+          activeRules: 0,
+          sentLast30Days: 0,
+          failedLast30Days: 0,
+          birthdaysToday: 0,
+        };
+      }
     },
   });
 };
