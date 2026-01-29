@@ -45,67 +45,79 @@ Regras:
 - Nunca invente informações sobre prazos ou valores.
 - Use as ferramentas disponíveis sempre que uma ação for necessária.`;
 
-const tools = [
+const ALL_TOOLS = [
   {
-    type: "function",
-    function: {
-      name: "cadastrar_ticket",
-      description: "Abre um novo ticket de suporte/atendimento para o servidor.",
-      parameters: {
-        type: "object",
-        properties: {
-          titulo: { type: "string", description: "Título resumido da solicitação" },
-          descricao: { type: "string", description: "Descrição detalhada do problema ou pedido" },
-          prioridade: { type: "string", enum: ["baixa", "media", "alta", "urgente"], default: "media" },
-          department_id: { type: "string", description: "ID do departamento (opcional)" }
-        },
-        required: ["titulo", "descricao"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "adicionar_tag",
-      description: "Adiciona uma etiqueta (tag) ao contato para segmentação.",
-      parameters: {
-        type: "object",
-        properties: {
-          tag_name: { type: "string", description: "Nome da tag a ser adicionada" }
-        },
-        required: ["tag_name"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "atualizar_contato",
-      description: "Atualiza os dados cadastrais do servidor no banco de dados.",
-      parameters: {
-        type: "object",
-        properties: {
-          nome: { type: "string" },
-          email: { type: "string" },
-          matricula: { type: "string" },
-          secretaria: { type: "string" },
-          data_nascimento: { type: "string", description: "Data de nascimento no formato YYYY-MM-DD" },
-          cargo: { type: "string" }
+    feature: "enableTickets",
+    tool: {
+      type: "function",
+      function: {
+        name: "cadastrar_ticket",
+        description: "Abre um novo ticket de suporte/atendimento para o servidor.",
+        parameters: {
+          type: "object",
+          properties: {
+            titulo: { type: "string", description: "Título resumido da solicitação" },
+            descricao: { type: "string", description: "Descrição detalhada do problema ou pedido" },
+            prioridade: { type: "string", enum: ["baixa", "media", "alta", "urgente"], default: "media" },
+            department_id: { type: "string", description: "ID do departamento (opcional)" }
+          },
+          required: ["titulo", "descricao"]
         }
       }
     }
   },
   {
-    type: "function",
-    function: {
-      name: "transferir_atendimento",
-      description: "Transfere a conversa para um atendente humano e desativa o bot.",
-      parameters: {
-        type: "object",
-        properties: {
-          motivo: { type: "string", description: "Breve motivo da transferência" }
-        },
-        required: ["motivo"]
+    feature: "always_enabled",
+    tool: {
+      type: "function",
+      function: {
+        name: "adicionar_tag",
+        description: "Adiciona uma etiqueta (tag) ao contato para segmentação.",
+        parameters: {
+          type: "object",
+          properties: {
+            tag_name: { type: "string", description: "Nome da tag a ser adicionada" }
+          },
+          required: ["tag_name"]
+        }
+      }
+    }
+  },
+  {
+    feature: "always_enabled",
+    tool: {
+      type: "function",
+      function: {
+        name: "atualizar_contato",
+        description: "Atualiza os dados cadastrais do servidor no banco de dados.",
+        parameters: {
+          type: "object",
+          properties: {
+            nome: { type: "string" },
+            email: { type: "string" },
+            matricula: { type: "string" },
+            secretaria: { type: "string" },
+            data_nascimento: { type: "string", description: "Data de nascimento no formato YYYY-MM-DD" },
+            cargo: { type: "string" }
+          }
+        }
+      }
+    }
+  },
+  {
+    feature: "always_enabled",
+    tool: {
+      type: "function",
+      function: {
+        name: "transferir_atendimento",
+        description: "Transfere a conversa para um atendente humano e desativa o bot.",
+        parameters: {
+          type: "object",
+          properties: {
+            motivo: { type: "string", description: "Breve motivo da transferência" }
+          },
+          required: ["motivo"]
+        }
       }
     }
   }
@@ -218,9 +230,10 @@ serve(async (req) => {
           personalizedPrompt = personalizedPrompt.replaceAll(key, value);
         });
 
-        // --- NEW: Inject Knowledge Base ---
-        if (tenantConfig.ai.knowledgeBase) {
-          personalizedPrompt += `\n\n--- BASE DE CONHECIMENTO ESPECÍFICA ---\n${tenantConfig.ai.knowledgeBase}\n--------------------------------------`;
+        // --- NEW: Inject Knowledge Base (Sanitize Keys) ---
+        const kb = aiConfig.knowledge_base || aiConfig.knowledgeBase;
+        if (kb && kb.trim()) {
+          personalizedPrompt += `\n\n--- BASE DE CONHECIMENTO ESPECÍFICA ---\n${kb}\n--------------------------------------`;
         }
 
         // --- NEW: Inject SLA and Business Hours ---
@@ -249,13 +262,36 @@ serve(async (req) => {
           }
         }
 
-        // --- NEW: Inform AI about Business Rules/Entity ---
+        // --- NEW: Inform AI about Business Rules and ACTIVE FEATURES ---
+        const enabledModules = Object.entries(tenantConfig.features || {})
+          .filter(([_, enabled]) => enabled === true)
+          .map(([key]) => key.replace('enable', ''))
+          .join(', ');
+
         personalizedPrompt += `\n\n--- REGRAS DE NEGÓCIO E AMBIENTE ---\nEste sistema é um CRM focado em ${entityConfig.entityNamePlural || "servidores"}.
 A entidade principal é chamada de "${entityConfig.entityName || "servidor"}".
+Módulos Habilitados nesta Unidade: ${enabledModules || "Apenas Chat Básico"}.
 Departamentos ativos (use o UUID para abrir tickets): ${activeDeptsStr}.
 --------------------------------------`;
+
+        // Se o módulo de tickets estiver desativado, reforçamos que ela não pode prometer isso.
+        if (tenantConfig.features?.enableTickets === false) {
+          personalizedPrompt += `\nAVISO: O módulo de tickets está DESATIVADO. Não ofereça abertura de chamados.`;
+        }
       }
     }
+
+    // Filtrar ferramentas baseadas nos módulos habilitados
+    const availableTools = ALL_TOOLS
+      .filter(t => t.feature === "always_enabled" || (ownerId && (body as any).tenantConfig?.features?.[t.feature] !== false)) // Fallback if tenantConfig isn't loaded correctly but usually we fetch it from DB above
+      .map(t => t.tool);
+
+    // Na verdade, precisamos usar o tenantConfig que buscamos do banco
+    const tenantConfigForTools = ownerId ? (await supabase.from('system_settings').select('value').eq('key', 'tenant_config').eq('owner_id', ownerId).maybeSingle()).data?.value : null;
+
+    const finalTools = ALL_TOOLS
+      .filter(t => t.feature === "always_enabled" || (tenantConfigForTools?.features?.[t.feature] === true))
+      .map(t => t.tool);
 
     // --- NEW: Enrich context with DIRECT values (Tests/Playground) ---
     if (context?.servidor_nome || context?.servidor_matricula || context?.servidor_secretaria) {
@@ -292,8 +328,8 @@ O usuário com quem você está falando agora forneceu os seguintes dados:
     const openaiRequest = {
       model: aiModel,
       messages: [{ role: "system", content: personalizedPrompt }, ...messages],
-      tools: tools,
-      tool_choice: "auto",
+      tools: finalTools.length > 0 ? finalTools : undefined, // Só envia tools habilitadas
+      tool_choice: finalTools.length > 0 ? "auto" : undefined,
       max_tokens: 1000,
     };
 
