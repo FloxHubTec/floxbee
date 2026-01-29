@@ -9,38 +9,73 @@ import { useIntegrations } from '@/hooks/useIntegrations';
 import { MessageSquare, Loader2, CheckCircle2, XCircle, TestTube } from 'lucide-react';
 import { toast } from 'sonner';
 
+const MASK = '••••••••••••••••••••';
+
 export default function IntegrationsSettings() {
     const { integrations, loading, saveIntegration, testIntegration, getIntegration } = useIntegrations();
 
     // WhatsApp State
     const whatsappIntegration = getIntegration('whatsapp');
     const [whatsappConfig, setWhatsappConfig] = useState({
-        phone_number_id: whatsappIntegration?.config?.phone_number_id || '',
-        business_account_id: whatsappIntegration?.config?.business_account_id || '',
-        access_token: whatsappIntegration?.config?.access_token || '',
-        webhook_verify_token: whatsappIntegration?.config?.webhook_verify_token || '',
-        is_active: whatsappIntegration?.is_active || false
+        phone_number_id: '',
+        business_account_id: '',
+        access_token: '',
+        webhook_verify_token: '',
+        is_active: false
     });
 
     // OpenAI State
     const openaiIntegration = getIntegration('openai');
     const [openaiConfig, setOpenaiConfig] = useState({
-        api_key: openaiIntegration?.config?.api_key || '',
-        organization_id: openaiIntegration?.config?.organization_id || '',
-        is_active: openaiIntegration?.is_active || false
+        api_key: '',
+        organization_id: '',
+        is_active: false
     });
 
     // SMTP State
     const smtpIntegration = getIntegration('smtp');
     const [smtpConfig, setSmtpConfig] = useState({
-        host: smtpIntegration?.config?.host || '',
-        port: smtpIntegration?.config?.port || '587',
-        username: smtpIntegration?.config?.username || '',
-        password: smtpIntegration?.config?.password || '',
-        from_email: smtpIntegration?.config?.from_email || '',
-        from_name: smtpIntegration?.config?.from_name || '',
-        is_active: smtpIntegration?.is_active || false
+        host: '',
+        port: '587',
+        username: '',
+        password: '',
+        from_email: '',
+        from_name: '',
+        is_active: false
     });
+
+    // Efeito para carregar dados iniciais (com máscara nos sensíveis)
+    React.useEffect(() => {
+        if (!loading) {
+            if (whatsappIntegration) {
+                setWhatsappConfig({
+                    phone_number_id: whatsappIntegration.config?.phone_number_id || '',
+                    business_account_id: whatsappIntegration.config?.business_account_id || '',
+                    access_token: whatsappIntegration.config?.access_token ? MASK : '',
+                    webhook_verify_token: whatsappIntegration.config?.webhook_verify_token ? MASK : '',
+                    is_active: whatsappIntegration.is_active || false
+                });
+            }
+            if (openaiIntegration) {
+                setOpenaiConfig({
+                    api_key: openaiIntegration.config?.api_key ? MASK : '',
+                    organization_id: openaiIntegration.config?.organization_id || '',
+                    is_active: openaiIntegration.is_active || false
+                });
+            }
+            if (smtpIntegration) {
+                setSmtpConfig({
+                    host: smtpIntegration.config?.host || '',
+                    port: smtpIntegration.config?.port || '587',
+                    username: smtpIntegration.config?.username || '',
+                    password: smtpIntegration.config?.password ? MASK : '',
+                    from_email: smtpIntegration.config?.from_email || '',
+                    from_name: smtpIntegration.config?.from_name || '',
+                    is_active: smtpIntegration.is_active || false
+                });
+            }
+        }
+    }, [loading, whatsappIntegration, openaiIntegration, smtpIntegration]);
 
     const [testingWhatsApp, setTestingWhatsApp] = useState(false);
     const [testingOpenAI, setTestingOpenAI] = useState(false);
@@ -48,16 +83,27 @@ export default function IntegrationsSettings() {
 
     const handleSaveWhatsApp = async () => {
         try {
+            // Mesclar com a config atual para não perder dados mascarados
+            const finalConfig = {
+                ...whatsappIntegration?.config,
+                phone_number_id: whatsappConfig.phone_number_id,
+                business_account_id: whatsappConfig.business_account_id,
+            };
+
+            // Atualiza o token apenas se o usuário tiver digitado algo novo (não for a máscara)
+            if (whatsappConfig.access_token !== MASK) {
+                finalConfig.access_token = whatsappConfig.access_token;
+            }
+            if (whatsappConfig.webhook_verify_token !== MASK) {
+                finalConfig.webhook_verify_token = whatsappConfig.webhook_verify_token;
+            }
+
             await saveIntegration({
                 integration_type: 'whatsapp',
-                config: {
-                    phone_number_id: whatsappConfig.phone_number_id,
-                    business_account_id: whatsappConfig.business_account_id,
-                    access_token: whatsappConfig.access_token,
-                    webhook_verify_token: whatsappConfig.webhook_verify_token
-                },
+                config: finalConfig,
                 is_active: whatsappConfig.is_active
             });
+            toast.success('Configurações de WhatsApp salvas!');
         } catch (error) {
             console.error('Erro ao salvar WhatsApp:', error);
         }
@@ -74,14 +120,21 @@ export default function IntegrationsSettings() {
 
     const handleSaveOpenAI = async () => {
         try {
+            const finalConfig = {
+                ...openaiIntegration?.config,
+                organization_id: openaiConfig.organization_id
+            };
+
+            if (openaiConfig.api_key !== MASK) {
+                finalConfig.api_key = openaiConfig.api_key;
+            }
+
             await saveIntegration({
                 integration_type: 'openai',
-                config: {
-                    api_key: openaiConfig.api_key,
-                    organization_id: openaiConfig.organization_id
-                },
+                config: finalConfig,
                 is_active: openaiConfig.is_active
             });
+            toast.success('Configurações de OpenAI salvas!');
         } catch (error) {
             console.error('Erro ao salvar OpenAI:', error);
         }
@@ -98,18 +151,25 @@ export default function IntegrationsSettings() {
 
     const handleSaveSMTP = async () => {
         try {
+            const finalConfig = {
+                ...smtpIntegration?.config,
+                host: smtpConfig.host,
+                port: smtpConfig.port,
+                username: smtpConfig.username,
+                from_email: smtpConfig.from_email,
+                from_name: smtpConfig.from_name
+            };
+
+            if (smtpConfig.password !== MASK) {
+                finalConfig.password = smtpConfig.password;
+            }
+
             await saveIntegration({
                 integration_type: 'smtp',
-                config: {
-                    host: smtpConfig.host,
-                    port: smtpConfig.port,
-                    username: smtpConfig.username,
-                    password: smtpConfig.password,
-                    from_email: smtpConfig.from_email,
-                    from_name: smtpConfig.from_name
-                },
+                config: finalConfig,
                 is_active: smtpConfig.is_active
             });
+            toast.success('Configurações de SMTP salvas!');
         } catch (error) {
             console.error('Erro ao salvar SMTP:', error);
         }
@@ -192,6 +252,7 @@ export default function IntegrationsSettings() {
                         <Input
                             type="password"
                             value={whatsappConfig.access_token}
+                            onFocus={() => whatsappConfig.access_token === MASK && setWhatsappConfig({ ...whatsappConfig, access_token: '' })}
                             onChange={(e) => setWhatsappConfig({ ...whatsappConfig, access_token: e.target.value })}
                             placeholder="EAAxxxxxxxxxx"
                         />
@@ -202,6 +263,7 @@ export default function IntegrationsSettings() {
                         <Input
                             type="text"
                             value={whatsappConfig.webhook_verify_token}
+                            onFocus={() => whatsappConfig.webhook_verify_token === MASK && setWhatsappConfig({ ...whatsappConfig, webhook_verify_token: '' })}
                             onChange={(e) => setWhatsappConfig({ ...whatsappConfig, webhook_verify_token: e.target.value })}
                             placeholder="seu_token_secreto"
                         />
@@ -231,7 +293,7 @@ export default function IntegrationsSettings() {
                                 </Button>
                             </div>
                             <p className="mt-2 text-xs">
-                                <strong>Verify Token:</strong> {whatsappConfig.webhook_verify_token || '(configure acima)'}
+                                <strong>Verify Token:</strong> {whatsappConfig.webhook_verify_token === MASK ? 'Oculto (já configurado)' : whatsappConfig.webhook_verify_token || '(configure acima)'}
                             </p>
                         </AlertDescription>
                     </Alert>
@@ -292,6 +354,7 @@ export default function IntegrationsSettings() {
                         <Input
                             type="password"
                             value={openaiConfig.api_key}
+                            onFocus={() => openaiConfig.api_key === MASK && setOpenaiConfig({ ...openaiConfig, api_key: '' })}
                             onChange={(e) => setOpenaiConfig({ ...openaiConfig, api_key: e.target.value })}
                             placeholder="sk-xxxxxxxxxxxxxxxx"
                         />
@@ -394,6 +457,7 @@ export default function IntegrationsSettings() {
                             <Input
                                 type="password"
                                 value={smtpConfig.password}
+                                onFocus={() => smtpConfig.password === MASK && setSmtpConfig({ ...smtpConfig, password: '' })}
                                 onChange={(e) => setSmtpConfig({ ...smtpConfig, password: e.target.value })}
                                 placeholder="••••••••"
                             />

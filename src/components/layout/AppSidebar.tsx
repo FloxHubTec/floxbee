@@ -21,6 +21,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import NotificationBell from './NotificationBell';
+import { useTenant } from '@/hooks/useTenant';
+import { TenantFeatures } from '@/config/tenant';
 
 // Tipagem alinhada com o banco de dados
 export type AppRole = 'superadmin' | 'admin' | 'supervisor' | 'agente';
@@ -30,6 +32,7 @@ export interface NavItem {
   label: string;
   path: string;
   roles?: AppRole[];
+  feature?: keyof TenantFeatures;
 }
 
 // Definição dos menus e permissões
@@ -52,25 +55,29 @@ export const navItems: NavItem[] = [
   {
     icon: Ticket,
     label: 'Tickets',
-    path: '/tickets'
+    path: '/tickets',
+    feature: 'enableTickets'
   },
   {
     icon: Megaphone,
     label: 'Campanhas',
     path: '/campaigns',
-    roles: ['superadmin', 'admin', 'supervisor']
+    roles: ['superadmin', 'admin', 'supervisor'],
+    feature: 'enableCampaigns'
   },
   {
     icon: QrCode,
     label: 'QR Codes',
     path: '/qr-codes',
-    roles: ['superadmin', 'admin', 'supervisor']
+    roles: ['superadmin', 'admin', 'supervisor'],
+    feature: 'enablePublicRegister'
   },
   {
     icon: FileText,
     label: 'Landing Pages',
     path: '/landing-pages',
-    roles: ['superadmin', 'admin', 'supervisor']
+    roles: ['superadmin', 'admin', 'supervisor'],
+    feature: 'enablePublicRegister'
   },
   {
     icon: FileText,
@@ -82,30 +89,35 @@ export const navItems: NavItem[] = [
     icon: Building2,
     label: 'Departamentos',
     path: '/departments',
-    roles: ['superadmin', 'admin']
+    roles: ['superadmin', 'admin'],
+    feature: 'enableTickets'
   },
   {
     icon: Bot,
     label: 'Automações',
     path: '/automations',
-    roles: ['superadmin', 'admin']
+    roles: ['superadmin', 'admin'],
+    feature: 'enableAutomations'
   },
   {
     icon: Sparkles,
     label: 'IA Atendimento',
     path: '/ai-service',
-    roles: ['superadmin', 'admin']
+    roles: ['superadmin', 'admin'],
+    feature: 'enableAI'
   },
   {
     icon: Code,
     label: 'API Docs',
     path: '/api-docs',
-    roles: ['superadmin', 'admin']
+    roles: ['superadmin', 'admin'],
+    feature: 'enableAPIAccess'
   },
 ];
 
 const AppSidebar: React.FC = () => {
   const { signOut, isAdmin, isSuperadmin, isSupervisor, profile } = useAuth();
+  const { config } = useTenant();
 
   // Determina a role string atual com base nas flags hierárquicas do useAuth
   let currentRole: AppRole = 'agente';
@@ -123,10 +135,13 @@ const AppSidebar: React.FC = () => {
 
   // Filtra os itens baseado na role atual
   const filteredNavItems = navItems.filter((item) => {
-    // Se não tiver restrição de roles, mostra para todos
-    if (!item.roles) return true;
-    // Verifica se a role atual está na lista permitida
-    return item.roles.includes(currentRole);
+    // 1. Filtragem por Role
+    if (item.roles && !item.roles.includes(currentRole)) return false;
+
+    // 2. Filtragem por Módulo (Feature flag)
+    if (item.feature && !config.features[item.feature]) return false;
+
+    return true;
   });
 
   return (

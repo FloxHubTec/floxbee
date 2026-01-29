@@ -445,6 +445,67 @@ export default function TenantSettings() {
                 </div>
               </div>
 
+              <div className="space-y-4 border-t pt-4">
+                <Label className="text-base font-semibold">Campos Personalizados (Perfil do Contato)</Label>
+                <div className="grid gap-6">
+                  {[1, 2, 3].map((num) => {
+                    const fieldKey = `field${num}` as keyof typeof config.entity.customFields;
+                    const field = config.entity.customFields[fieldKey];
+                    return (
+                      <div key={fieldKey} className="flex gap-4 items-end p-3 border rounded-lg bg-muted/20">
+                        <div className="flex-1 space-y-2">
+                          <Label>Campo {num} - Etiqueta (Label)</Label>
+                          <Input
+                            value={field?.label || ""}
+                            onChange={(e) => updateConfig({
+                              entity: {
+                                ...config.entity,
+                                customFields: {
+                                  ...config.entity.customFields,
+                                  [fieldKey]: { ...(field || {}), label: e.target.value }
+                                }
+                              }
+                            })}
+                            placeholder="Ex: Matrícula, CPF, Convênio"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <Label>Dica (Placeholder)</Label>
+                          <Input
+                            value={field?.placeholder || ""}
+                            onChange={(e) => updateConfig({
+                              entity: {
+                                ...config.entity,
+                                customFields: {
+                                  ...config.entity.customFields,
+                                  [fieldKey]: { ...(field || {}), placeholder: e.target.value }
+                                }
+                              }
+                            })}
+                            placeholder="Ex: Digite o CPF..."
+                          />
+                        </div>
+                        <div className="flex flex-col items-center gap-2 mb-2">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-semibold">Ativo</Label>
+                          <Switch
+                            checked={field?.enabled || false}
+                            onCheckedChange={(checked) => updateConfig({
+                              entity: {
+                                ...config.entity,
+                                customFields: {
+                                  ...config.entity.customFields,
+                                  [fieldKey]: { ...(field || {}), enabled: checked }
+                                }
+                              }
+                            })}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <Button onClick={handleSaveEntity} className="w-full">
                 <Save className="h-4 w-4 mr-2" />
                 Salvar Configurações de Entidade
@@ -652,7 +713,70 @@ export default function TenantSettings() {
                     onCheckedChange={(checked) => handleSaveFeatures({ enableTickets: checked })}
                   />
                 </div>
-                {/* Outras features... */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">Campanhas de Mensagens</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Envio de mensagens em massa e gestão de listas
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.features.enableCampaigns}
+                    onCheckedChange={(checked) => handleSaveFeatures({ enableCampaigns: checked })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">Automações de Chat</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Regras de resposta automática e gatilhos temporais
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.features.enableAutomations}
+                    onCheckedChange={(checked) => handleSaveFeatures({ enableAutomations: checked })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">Inteligência Artificial (IA)</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Assistente virtual para triagem e respostas automáticas
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.features.enableAI}
+                    onCheckedChange={(checked) => handleSaveFeatures({ enableAI: checked })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">Cadastro Público (Landing Pages)</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Páginas externas para captura de novos contatos
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.features.enablePublicRegister}
+                    onCheckedChange={(checked) => handleSaveFeatures({ enablePublicRegister: checked })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">Acesso via API</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Integrações externas através de chaves de API
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.features.enableAPIAccess}
+                    onCheckedChange={(checked) => handleSaveFeatures({ enableAPIAccess: checked })}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
