@@ -183,6 +183,23 @@ const Inbox: React.FC = () => {
     }
   }, [selectedConversation?.id, markAsRead, selectedConversation?.unread_count]);
 
+  // Sincronizar conversa selecionada com dados atualizados em tempo real do hook useConversations
+  useEffect(() => {
+    if (selectedConversation) {
+      const updatedConv = conversations.find(c => c.id === selectedConversation.id);
+      if (updatedConv) {
+        // Verifica se houve mudança significativa para evitar loops
+        const statusChanged = updatedConv.status !== selectedConversation.status;
+        const botStatusChanged = (updatedConv as any).is_bot_active !== (selectedConversation as any).is_bot_active;
+        const assignedChanged = updatedConv.assigned_to !== selectedConversation.assigned_to;
+
+        if (statusChanged || botStatusChanged || assignedChanged) {
+          setSelectedConversation(updatedConv);
+        }
+      }
+    }
+  }, [conversations, selectedConversation?.id]);
+
   const formatTimestamp = (date: string | null) => {
     if (!date) return '';
     const d = new Date(date);

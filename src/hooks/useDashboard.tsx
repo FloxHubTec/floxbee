@@ -30,8 +30,13 @@ export const useDashboardMetrics = (filters?: { startDate?: string; endDate?: st
       let baseConvPrev = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
       let baseMessages = supabase.from('messages').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startDate).lte('created_at', endDate);
       let baseTicketsOpen = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).in('status', ['aberto_ia', 'em_analise', 'pendente']);
+      // Tickets Resolved
       let baseTicketsResolvedPeriod = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startDate).lte('resolved_at', endDate);
       let baseTicketsResolvedPrev = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startOfYesterday).lte('resolved_at', endOfYesterday);
+
+      // Conversations Resolved (Resolvidos no Inbox)
+      let baseConvsResolvedPeriod = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startDate).lte('resolved_at', endDate);
+      let baseConvsResolvedPrev = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startOfYesterday).lte('resolved_at', endOfYesterday);
 
       if (agentId) {
         baseConvPeriod = baseConvPeriod.eq('assigned_to', agentId);
@@ -39,6 +44,8 @@ export const useDashboardMetrics = (filters?: { startDate?: string; endDate?: st
         baseTicketsOpen = baseTicketsOpen.eq('assigned_to', agentId);
         baseTicketsResolvedPeriod = baseTicketsResolvedPeriod.eq('assigned_to', agentId);
         baseTicketsResolvedPrev = baseTicketsResolvedPrev.eq('assigned_to', agentId);
+        baseConvsResolvedPeriod = baseConvsResolvedPeriod.eq('assigned_to', agentId);
+        baseConvsResolvedPrev = baseConvsResolvedPrev.eq('assigned_to', agentId);
         // Messages and contacts might not have direct agent_id in some schemas, skipping for now unless confirmed
       }
 
@@ -50,6 +57,8 @@ export const useDashboardMetrics = (filters?: { startDate?: string; endDate?: st
         ticketsResult,
         resolvedTicketsPeriod,
         resolvedTicketsPrev,
+        resolvedConvsPeriod,
+        resolvedConvsPrev,
       ] = await Promise.all([
         baseContacts,
         baseConvPeriod,
@@ -58,15 +67,17 @@ export const useDashboardMetrics = (filters?: { startDate?: string; endDate?: st
         baseTicketsOpen,
         baseTicketsResolvedPeriod,
         baseTicketsResolvedPrev,
+        baseConvsResolvedPeriod,
+        baseConvsResolvedPrev,
       ]);
 
       const convCount = conversationsPeriod.count || 0;
       const convPrevCount = conversationsPrev.count || 1;
       const conversationsChange = Math.round(((convCount - convPrevCount) / convPrevCount) * 100);
 
-      const resolvedCount = resolvedTicketsPeriod.count || 0;
-      const resolvedPrevCount = resolvedTicketsPrev.count || 1;
-      const resolvedChange = Math.round(((resolvedCount - resolvedPrevCount) / resolvedPrevCount) * 100);
+      const totalResolvedCount = (resolvedTicketsPeriod.count || 0) + (resolvedConvsPeriod.count || 0);
+      const totalResolvedPrevCount = (resolvedTicketsPrev.count || 0) + (resolvedConvsPrev.count || 0) || 1;
+      const resolvedChange = Math.round(((totalResolvedCount - totalResolvedPrevCount) / totalResolvedPrevCount) * 100);
 
       return {
         totalContacts: contactsResult.count || 0,
@@ -74,7 +85,7 @@ export const useDashboardMetrics = (filters?: { startDate?: string; endDate?: st
         conversationsChange,
         messagesToday: messagesResult.count || 0,
         openTickets: ticketsResult.count || 0,
-        resolvedToday: resolvedCount,
+        resolvedToday: totalResolvedCount,
         resolvedChange,
       };
     },
@@ -140,8 +151,8 @@ export const useMessagesOverTime = (filters?: { startDate?: string; endDate?: st
       const ownerId = profile?.owner_id || profile?.id;
 
       // For dynamic range, we'd need a more complex group by query. 
-      // Keeping the 12-hour view for now but adding owner_id scoping.
-      for (let i = 11; i >= 0; i--) {
+      // Agora mostrando as últimas 24 horas (ajustado de 11 para 23)
+      for (let i = 23; i >= 0; i--) {
         const hourStart = startOfHour(subHours(now, i));
         const hourEnd = startOfHour(subHours(now, i - 1));
 
@@ -242,10 +253,10 @@ export const useRecentActivity = (filters?: { agentId?: string }) => {
       convsRes.data?.forEach((c: any) => {
         activities.push({
           id: `c-${c.id}`,
-          type: c.status === 'resolvido' ? 'conversation_resolved' : 'conversation_started',
-          title: c.status === 'resolvido' ? 'Encerrada' : 'Iniciada',
+          type: c.status === 'concluido' ? 'conversation_resolved' : 'conversation_started',
+          title: c.status === 'concluido' ? 'Encerrada' : 'Iniciada',
           subtitle: c.contacts?.nome || 'Contato',
-          timestamp: c.status === 'resolvido' ? c.resolved_at : c.created_at,
+          timestamp: c.status === 'concluido' ? c.resolved_at : c.created_at,
         });
       });
 

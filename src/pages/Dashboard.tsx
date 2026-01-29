@@ -453,7 +453,7 @@ const Dashboard: React.FC = () => {
         {/* Messages Chart */}
         <Card className="lg:col-span-2 border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-medium">Mensagens nas últimas 12 horas</CardTitle>
+            <CardTitle className="text-lg font-medium">Mensagens nas últimas 24 horas</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
