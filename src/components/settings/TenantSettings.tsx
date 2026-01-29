@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,64 @@ import {
 } from "lucide-react";
 import { CURRENT_TENANT, TenantConfig } from "@/config/tenant";
 
+// Funções utilitárias para conversão de cores
+function hexToHsl(hex: string): string {
+  let r = 0, g = 0, b = 0;
+  if (hex.length === 4) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (hex.length === 7) {
+    r = parseInt(hex.substring(1, 3), 16);
+    g = parseInt(hex.substring(3, 5), 16);
+    b = parseInt(hex.substring(5, 7), 16);
+  }
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
+
+function hslToRgb(hsl: string): [number, number, number] {
+  const parts = hsl.split(' ');
+  const h = parseInt(parts[0]) / 360;
+  const s = parseInt(parts[1]) / 100;
+  const l = parseInt(parts[2]) / 100;
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const hue2rgb = (t: number) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    r = hue2rgb(h + 1 / 3);
+    g = hue2rgb(h);
+    b = hue2rgb(h - 1 / 3);
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function rgbToHex(rgb: [number, number, number]): string {
+  return "#" + ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1);
+}
+
 export default function TenantSettings() {
   const { config, updateConfig } = useTenant();
   const { isAdmin, isSuperadmin } = useAuth();
@@ -31,6 +90,7 @@ export default function TenantSettings() {
   const [newDepartment, setNewDepartment] = useState("");
   const [helpTopics, setHelpTopics] = useState<string[]>(config.ai.helpTopics);
   const [newTopic, setNewTopic] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   // Apenas admins ou superadmins podem acessar
   if (!isAdmin && !isSuperadmin) {
@@ -114,7 +174,11 @@ export default function TenantSettings() {
       </div>
 
       <Tabs defaultValue="entity" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="branding" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            <span className="hidden sm:inline">Branding</span>
+          </TabsTrigger>
           <TabsTrigger value="entity" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Entidade</span>
@@ -128,6 +192,190 @@ export default function TenantSettings() {
             <span className="hidden sm:inline">Módulos</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* Branding Configuration */}
+        <TabsContent value="branding">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Identidade Visual
+              </CardTitle>
+              <CardDescription>
+                Personalize o nome, cores e logotipo do seu ambiente
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome do Sistema</Label>
+                  <Input
+                    value={config.branding.name}
+                    onChange={(e) => updateConfig({
+                      branding: { ...config.branding, name: e.target.value }
+                    })}
+                    placeholder="Ex: FloxBee, Minha Empresa"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nome Curto</Label>
+                  <Input
+                    value={config.branding.shortName}
+                    onChange={(e) => updateConfig({
+                      branding: { ...config.branding, shortName: e.target.value }
+                    })}
+                    placeholder="Ex: Flox"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tagline (Slogan)</Label>
+                <Input
+                  value={config.branding.tagline}
+                  onChange={(e) => updateConfig({
+                    branding: { ...config.branding, tagline: e.target.value }
+                  })}
+                  placeholder="Ex: Sistema de Gestão Inteligente"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label>Cor Primária (Tema)</Label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      className="h-10 w-20 cursor-pointer rounded border p-1"
+                      value={rgbToHex(hslToRgb(config.branding.colors.primary))}
+                      onChange={(e) => {
+                        const hsl = hexToHsl(e.target.value);
+                        updateConfig({
+                          branding: {
+                            ...config.branding,
+                            colors: { ...config.branding.colors, primary: hsl }
+                          }
+                        });
+                      }}
+                    />
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {config.branding.colors.primary}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label>Cor de Destaque (Accent)</Label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      className="h-10 w-20 cursor-pointer rounded border p-1"
+                      value={rgbToHex(hslToRgb(config.branding.colors.accent))}
+                      onChange={(e) => {
+                        const hsl = hexToHsl(e.target.value);
+                        updateConfig({
+                          branding: {
+                            ...config.branding,
+                            colors: { ...config.branding.colors, accent: hsl }
+                          }
+                        });
+                      }}
+                    />
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {config.branding.colors.accent}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Logotipo da Unidade</Label>
+                <div className="flex items-start gap-4 p-4 border rounded-lg bg-muted/30">
+                  <div className="h-24 w-24 border rounded flex items-center justify-center bg-background overflow-hidden relative">
+                    {isUploading ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+                        <RotateCcw className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                    ) : null}
+                    {config.branding.logoUrl ? (
+                      <img src={config.branding.logoUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
+                    ) : (
+                      <Zap className="h-8 w-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <p className="text-sm font-medium">Alterar logotipo</p>
+                    <p className="text-xs text-muted-foreground">Upload de imagem PNG ou JPG (recomendado 512x512px)</p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => document.getElementById('logo-upload')?.click()}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? "Enviando..." : "Selecionar Arquivo"}
+                      </Button>
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        disabled={isUploading}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              setIsUploading(true);
+                              const fileExt = file.name.split('.').pop();
+                              const fileName = `logo-${Date.now()}.${fileExt}`;
+
+                              const { data, error } = await supabase.storage
+                                .from('branding')
+                                .upload(fileName, file);
+
+                              if (error) throw error;
+
+                              const { data: { publicUrl } } = supabase.storage
+                                .from('branding')
+                                .getPublicUrl(fileName);
+
+                              await updateConfig({
+                                branding: { ...config.branding, logoUrl: publicUrl }
+                              });
+                              toast.success("Logo atualizado!");
+                            } catch (err: any) {
+                              console.error(err);
+                              toast.error(`Erro ao fazer upload: ${err.message || 'Erro desconhecido'}`);
+                            } finally {
+                              setIsUploading(false);
+                            }
+                          }
+                        }}
+                      />
+                      {config.branding.logoUrl && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => updateConfig({
+                            branding: { ...config.branding, logoUrl: undefined }
+                          })}
+                        >
+                          Remover
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={() => toast.success("Configurações salvas automaticamente!")} className="w-full">
+                <Save className="h-4 w-4 mr-2" />
+                Salvar Branding
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Entity Configuration */}
         <TabsContent value="entity">

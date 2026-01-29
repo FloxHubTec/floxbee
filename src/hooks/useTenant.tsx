@@ -23,6 +23,30 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
   }, [profile?.id]);
 
+  // Aplicar cores dinâmicas
+  useEffect(() => {
+    if (config?.branding?.colors) {
+      const root = document.documentElement;
+      const { primary, accent } = config.branding.colors;
+
+      root.style.setProperty('--primary', primary);
+      root.style.setProperty('--ring', primary);
+      root.style.setProperty('--sidebar-primary', primary);
+      root.style.setProperty('--accent', accent);
+      
+      // Se houver logo customizado, podemos atualizar o favicon também (opcional)
+      if (config.branding.faviconUrl) {
+         let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+         if (!link) {
+           link = document.createElement('link');
+           link.rel = 'icon';
+           document.getElementsByTagName('head')[0].appendChild(link);
+         }
+         link.href = config.branding.faviconUrl;
+      }
+    }
+  }, [config.branding]);
+
   async function loadTenantConfig() {
     try {
       setLoading(true);

@@ -134,8 +134,6 @@ const AppSidebar: React.FC = () => {
       {/* HEADER DA SIDEBAR */}
       <div className="p-6 flex items-center gap-3">
         <FloxBeeLogo size={32} />
-        {/* Adicionei o nome de volta para não ficar vazio no desktop */}
-        <span className="font-bold text-xl text-primary tracking-tight">FloxBee</span>
       </div>
 
       {/* ÁREA DE NAVEGAÇÃO COM SCROLL */}
