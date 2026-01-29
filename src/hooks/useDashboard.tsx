@@ -28,15 +28,15 @@ export const useDashboardMetrics = (filters?: { startDate?: string; endDate?: st
       let baseContacts = supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('ativo', true).eq('owner_id', ownerId);
       let baseConvPeriod = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startDate).lte('created_at', endDate);
       let baseConvPrev = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
-      let baseMessages = supabase.from('messages').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('created_at', startDate).lte('created_at', endDate);
+      let baseMessages = supabase.from('messages').select('id, conversations!inner(owner_id)', { count: 'exact', head: true }).eq('conversations.owner_id', ownerId).gte('created_at', startDate).lte('created_at', endDate);
       let baseTicketsOpen = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).in('status', ['aberto_ia', 'em_analise', 'pendente']);
-      // Tickets Resolved
-      let baseTicketsResolvedPeriod = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startDate).lte('resolved_at', endDate);
-      let baseTicketsResolvedPrev = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startOfYesterday).lte('resolved_at', endOfYesterday);
+      // Tickets Resolved (Contar por resolved_at no período)
+      let baseTicketsResolvedPeriod = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('resolved_at', startDate).lte('resolved_at', endDate);
+      let baseTicketsResolvedPrev = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('resolved_at', startOfYesterday).lte('resolved_at', endOfYesterday);
 
-      // Conversations Resolved (Resolvidos no Inbox)
-      let baseConvsResolvedPeriod = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startDate).lte('resolved_at', endDate);
-      let baseConvsResolvedPrev = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).eq('status', 'concluido').gte('resolved_at', startOfYesterday).lte('resolved_at', endOfYesterday);
+      // Conversations Resolved (Contar por resolved_at no período)
+      let baseConvsResolvedPeriod = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('resolved_at', startDate).lte('resolved_at', endDate);
+      let baseConvsResolvedPrev = supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId).gte('resolved_at', startOfYesterday).lte('resolved_at', endOfYesterday);
 
       if (agentId) {
         baseConvPeriod = baseConvPeriod.eq('assigned_to', agentId);
@@ -150,22 +150,30 @@ export const useMessagesOverTime = (filters?: { startDate?: string; endDate?: st
       const { data: profile } = await supabase.from('profiles').select('owner_id, id').eq('user_id', user?.id).single();
       const ownerId = profile?.owner_id || profile?.id;
 
-      // For dynamic range, we'd need a more complex group by query. 
-      // Agora mostrando as últimas 24 horas (ajustado de 11 para 23)
+      const twentyFourHoursAgo = subHours(now, 24);
+
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select('created_at, conversations!inner(owner_id)')
+        .eq('conversations.owner_id', ownerId)
+        .gte('created_at', twentyFourHoursAgo.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Group by hour in memory
       for (let i = 23; i >= 0; i--) {
         const hourStart = startOfHour(subHours(now, i));
-        const hourEnd = startOfHour(subHours(now, i - 1));
+        const hourLabel = format(hourStart, 'HH:mm');
 
-        const { count } = await supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('owner_id', ownerId)
-          .gte('created_at', hourStart.toISOString())
-          .lt('created_at', hourEnd.toISOString());
+        const count = messages?.filter(m => {
+          const msgDate = new Date(m.created_at);
+          return msgDate >= hourStart && msgDate < startOfHour(subHours(now, i - 1));
+        }).length || 0;
 
         hours.push({
-          hour: format(hourStart, 'HH:mm'),
-          messages: count || 0,
+          hour: hourLabel,
+          messages: count,
         });
       }
 
@@ -260,7 +268,7 @@ export const useRecentActivity = (filters?: { agentId?: string }) => {
         });
       });
 
-      return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 8);
+      return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     },
     refetchInterval: 15000,
   });

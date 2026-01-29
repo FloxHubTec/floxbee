@@ -68,6 +68,9 @@ const Dashboard: React.FC = () => {
     to: endOfDay(new Date()).toISOString(),
   });
   const [selectedAgent, setSelectedAgent] = React.useState<string>('all');
+  const [agentsPage, setAgentsPage] = React.useState(1);
+  const [activityPage, setActivityPage] = React.useState(1);
+  const itemsPerPage = 5;
 
   const filters = {
     startDate: dateRange.from,
@@ -554,31 +557,57 @@ const Dashboard: React.FC = () => {
           <CardContent>
             {activeAgents.length > 0 ? (
               <div className="space-y-3">
-                {activeAgents.map((agent) => (
-                  <div key={agent.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                          <span className="text-sm font-medium text-primary">
-                            {agent.nome.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                          </span>
+                {activeAgents
+                  .slice((agentsPage - 1) * itemsPerPage, agentsPage * itemsPerPage)
+                  .map((agent) => (
+                    <div key={agent.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                            <span className="text-sm font-medium text-primary">
+                              {agent.nome.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            </span>
+                          </div>
+                          <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card ${agent.status === 'online' ? 'bg-green-500' : 'bg-yellow-500'
+                            }`} />
                         </div>
-                        <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card ${agent.status === 'online' ? 'bg-green-500' : 'bg-yellow-500'
-                          }`} />
+                        <div>
+                          <p className="font-medium text-foreground">{agent.nome}</p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {agent.status === 'online' ? 'Ativo' : 'Disponível'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-foreground">{agent.nome}</p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {agent.status === 'online' ? 'Ativo' : 'Disponível'}
-                        </p>
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-foreground">{agent.activeChats}</p>
+                        <p className="text-xs text-muted-foreground">chats ativos</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-semibold text-foreground">{agent.activeChats}</p>
-                      <p className="text-xs text-muted-foreground">chats ativos</p>
-                    </div>
+                  ))}
+
+                {activeAgents.length > itemsPerPage && (
+                  <div className="flex items-center justify-between pt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={agentsPage === 1}
+                      onClick={() => setAgentsPage(p => p - 1)}
+                    >
+                      Anterior
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Página {agentsPage} de {Math.ceil(activeAgents.length / itemsPerPage)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={agentsPage >= Math.ceil(activeAgents.length / itemsPerPage)}
+                      onClick={() => setAgentsPage(p => p + 1)}
+                    >
+                      Próximo
+                    </Button>
                   </div>
-                ))}
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -600,30 +629,56 @@ const Dashboard: React.FC = () => {
           <CardContent>
             {recentActivity.length > 0 ? (
               <div className="space-y-3">
-                {recentActivity.map((activity) => {
-                  const { icon: Icon, color, bg } = getActivityIcon(activity.type);
-                  return (
-                    <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
-                      <div className={`p-2 rounded-full ${bg}`}>
-                        <Icon className={`w-4 h-4 ${color}`} />
+                {recentActivity
+                  .slice((activityPage - 1) * itemsPerPage, activityPage * itemsPerPage)
+                  .map((activity) => {
+                    const { icon: Icon, color, bg } = getActivityIcon(activity.type);
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
+                        <div className={`p-2 rounded-full ${bg}`}>
+                          <Icon className={`w-4 h-4 ${color}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {activity.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {activity.subtitle}
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDistanceToNow(new Date(activity.timestamp), {
+                            addSuffix: true,
+                            locale: ptBR
+                          })}
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {activity.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {activity.subtitle}
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(new Date(activity.timestamp), {
-                          addSuffix: true,
-                          locale: ptBR
-                        })}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+
+                {recentActivity.length > itemsPerPage && (
+                  <div className="flex items-center justify-between pt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={activityPage === 1}
+                      onClick={() => setActivityPage(p => p - 1)}
+                    >
+                      Anterior
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Página {activityPage} de {Math.ceil(recentActivity.length / itemsPerPage)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={activityPage >= Math.ceil(recentActivity.length / itemsPerPage)}
+                      onClick={() => setActivityPage(p => p + 1)}
+                    >
+                      Próximo
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
