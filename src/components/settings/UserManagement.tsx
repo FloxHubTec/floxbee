@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users, Shield, Crown, UserCheck, Search, ShieldAlert, Briefcase,
   MoreVertical, Pencil, Trash2, Key, Mail, Copy
@@ -58,9 +58,14 @@ const AVAILABLE_PERMISSIONS = [
 ];
 
 const UserManagement: React.FC = () => {
-  const { users, isLoading, updateRole, toggleUserStatus, stats, refetch } = useUsers();
+  const { users, isLoading, updateRole, toggleUserStatus, stats, refetch, page, setPage, pageSize } = useUsers();
   const { user: currentUser, profile: currentProfile, isAdmin, isSuperadmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Resetar página ao buscar
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, setPage]);
 
   // Estados para Modais de Edição e Exclusão
   const [activeTab, setActiveTab] = useState(isSuperadmin ? 'admins' : 'team');
@@ -237,120 +242,171 @@ const UserManagement: React.FC = () => {
     toast.success("E-mail copiado!");
   };
 
-  const UserList = ({ data }: { data: UserWithRole[] }) => (
-    <div className="space-y-3">
-      {data.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed">
-          <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
-          <p>Nenhum usuário encontrado nesta categoria.</p>
-        </div>
-      ) : (
-        data.map((user) => {
-          const isTargetSuperadmin = user.role === 'superadmin';
-          const canEdit = isSuperadmin || (!isTargetSuperadmin && isAdmin);
-          const isSelf = user.user_id === currentUser?.id;
+  const Pagination = ({ totalItems }: { totalItems: number }) => {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) return null;
 
-          return (
-            <div
-              key={user.id}
-              className={`group flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border transition-all ${user.ativo ? 'bg-card hover:border-primary/30' : 'bg-muted/30 opacity-70'
-                }`}
-            >
-              {/* Info do Usuário */}
-              <div className="flex items-center gap-4 mb-4 md:mb-0">
-                <Avatar className="h-10 w-10 border border-border">
-                  <AvatarImage src={user.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/5 text-primary font-medium">
-                    {getInitials(user.nome)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-foreground">{user.nome}</p>
-                    {!user.ativo && <Badge variant="secondary" className="h-5 text-[10px]">Inativo</Badge>}
-                    {isSelf && <Badge variant="outline" className="h-5 text-[10px] border-primary/40 text-primary">Você</Badge>}
+    return (
+      <div className="flex items-center justify-between px-2 py-4 border-t mt-4">
+        <div className="text-sm text-muted-foreground">
+          Mostrando <span className="font-medium">{Math.min(totalItems, (page - 1) * pageSize + 1)}</span> até <span className="font-medium">{Math.min(totalItems, page * pageSize)}</span> de <span className="font-medium">{totalItems}</span> usuários
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Anterior
+          </Button>
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <Button
+                key={p}
+                variant={page === p ? "default" : "ghost"}
+                size="sm"
+                className="w-8 h-8 p-0"
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </Button>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Próximo
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const UserList = ({ data }: { data: UserWithRole[] }) => {
+    const paginatedData = data.slice((page - 1) * pageSize, page * pageSize);
+
+    return (
+      <div className="space-y-3">
+        {paginatedData.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed">
+            <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p>Nenhum usuário encontrado nesta categoria.</p>
+          </div>
+        ) : (
+          <>
+            {paginatedData.map((user) => {
+              const isTargetSuperadmin = user.role === 'superadmin';
+              const canEdit = isSuperadmin || (!isTargetSuperadmin && isAdmin);
+              const isSelf = user.user_id === currentUser?.id;
+
+              return (
+                <div
+                  key={user.id}
+                  className={`group flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border transition-all ${user.ativo ? 'bg-card hover:border-primary/30' : 'bg-muted/30 opacity-70'
+                    }`}
+                >
+                  {/* Info do Usuário */}
+                  <div className="flex items-center gap-4 mb-4 md:mb-0">
+                    <Avatar className="h-10 w-10 border border-border">
+                      <AvatarImage src={user.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/5 text-primary font-medium">
+                        {getInitials(user.nome)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground">{user.nome}</p>
+                        {!user.ativo && <Badge variant="secondary" className="h-5 text-[10px]">Inativo</Badge>}
+                        {isSelf && <Badge variant="outline" className="h-5 text-[10px] border-primary/40 text-primary">Você</Badge>}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Mail className="w-3.5 h-3.5" />
+                        <span
+                          className="hover:text-primary cursor-pointer transition-colors flex items-center gap-1"
+                          onClick={() => user.email && copyToClipboard(user.email)}
+                        >
+                          {user.email}
+                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </span>
+                        {user.created_by && isSuperadmin && (
+                          <span className="text-[10px] bg-muted px-1.5 rounded" title="ID do Criador">
+                            Criado por: {user.created_by === currentProfile?.id ? 'Mim' : 'Outro Admin'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Mail className="w-3.5 h-3.5" />
-                    <span
-                      className="hover:text-primary cursor-pointer transition-colors flex items-center gap-1"
-                      onClick={() => user.email && copyToClipboard(user.email)}
-                    >
-                      {user.email}
-                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </span>
-                    {user.created_by && isSuperadmin && (
-                      <span className="text-[10px] bg-muted px-1.5 rounded" title="ID do Criador">
-                        Criado por: {user.created_by === currentProfile?.id ? 'Mim' : 'Outro Admin'}
-                      </span>
+
+                  {/* Controles */}
+                  <div className="flex items-center gap-3 justify-end w-full md:w-auto">
+                    {canEdit ? (
+                      <Select
+                        value={user.role}
+                        onValueChange={(val) => handleRoleChange(user, val)}
+                        disabled={isSelf}
+                      >
+                        <SelectTrigger className={`w-[140px] h-9 ${ROLE_COLORS[user.role as keyof typeof ROLE_COLORS]} border-0`}>
+                          <div className="flex items-center gap-2">
+                            {getRoleIcon(user.role)}
+                            <SelectValue />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {isSuperadmin && <SelectItem value="admin">Administrador</SelectItem>}
+                          <SelectItem value="supervisor">Supervisor</SelectItem>
+                          <SelectItem value="agente">Agente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge className={`${ROLE_COLORS[user.role as keyof typeof ROLE_COLORS]} px-3 py-1.5 h-9`}>
+                        {getRoleIcon(user.role)} {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS]}
+                      </Badge>
+                    )}
+
+                    <div className="h-4 w-px bg-border mx-1" />
+
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={user.ativo ?? false}
+                        onCheckedChange={() => handleToggleStatus(user)}
+                        disabled={!canEdit || isSelf}
+                        title={user.ativo ? "Desativar acesso" : "Ativar acesso"}
+                      />
+                    </div>
+
+                    {canEdit && !isSelf && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleEditClick(user)}>
+                            <Pencil className="w-4 h-4 mr-2" /> Editar Dados
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDeleteClick(user)}>
+                            <Trash2 className="w-4 h-4 mr-2" /> Excluir Usuário
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 </div>
-              </div>
-
-              {/* Controles */}
-              <div className="flex items-center gap-3 justify-end w-full md:w-auto">
-                {canEdit ? (
-                  <Select
-                    value={user.role}
-                    onValueChange={(val) => handleRoleChange(user, val)}
-                    disabled={isSelf}
-                  >
-                    <SelectTrigger className={`w-[140px] h-9 ${ROLE_COLORS[user.role as keyof typeof ROLE_COLORS]} border-0`}>
-                      <div className="flex items-center gap-2">
-                        {getRoleIcon(user.role)}
-                        <SelectValue />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isSuperadmin && <SelectItem value="admin">Administrador</SelectItem>}
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="agente">Agente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge className={`${ROLE_COLORS[user.role as keyof typeof ROLE_COLORS]} px-3 py-1.5 h-9`}>
-                    {getRoleIcon(user.role)} {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS]}
-                  </Badge>
-                )}
-
-                <div className="h-4 w-px bg-border mx-1" />
-
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={user.ativo ?? false}
-                    onCheckedChange={() => handleToggleStatus(user)}
-                    disabled={!canEdit || isSelf}
-                    title={user.ativo ? "Desativar acesso" : "Ativar acesso"}
-                  />
-                </div>
-
-                {canEdit && !isSelf && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleEditClick(user)}>
-                        <Pencil className="w-4 h-4 mr-2" /> Editar Dados
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDeleteClick(user)}>
-                        <Trash2 className="w-4 h-4 mr-2" /> Excluir Usuário
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
+              );
+            })}
+            <Pagination totalItems={data.length} />
+          </>
+        )}
+      </div>
+    );
+  };
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
 

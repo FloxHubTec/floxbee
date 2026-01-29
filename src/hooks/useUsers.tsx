@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -14,11 +15,10 @@ export interface UserWithRole {
   ativo: boolean | null;
   created_at: string;
   created_by: string | null;
-  role: AppRole; // Agora vem direto do profile
-  permissions: Record<string, boolean>; // Agora vem direto do profile
+  role: AppRole;
+  permissions: Record<string, boolean>;
 }
 
-// Roles visíveis para usuários normais
 export const VISIBLE_ROLES: AppRole[] = ['admin', 'supervisor', 'agente'];
 
 export const ROLE_LABELS: Record<AppRole, string> = {
@@ -37,14 +37,15 @@ export const ROLE_COLORS: Record<AppRole, string> = {
 
 export function useUsers() {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const { data: users = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['users-list'], // Chave atualizada
+  const { data: usersData = { items: [] as UserWithRole[], total: 0 }, isLoading, error, refetch } = useQuery({
+    queryKey: ['users-list'],
     queryFn: async () => {
-      // Busca simplificada: Tudo vem da tabela profiles agora
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('nome');
 
       if (error) {
@@ -52,13 +53,17 @@ export function useUsers() {
         throw error;
       }
 
-      return data as UserWithRole[];
+      return {
+        items: data as UserWithRole[],
+        total: data.length
+      };
     },
   });
 
+  const users = usersData.items;
+
   const updateRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: AppRole }) => {
-      // Update direto na tabela profiles
       const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
@@ -68,7 +73,6 @@ export function useUsers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users-list'] });
-      // Também invalidamos o cache do usuário atual para refletir mudanças imediatas se eu editar a mim mesmo
       queryClient.invalidateQueries({ queryKey: ['current-user-role'] });
       toast.success('Função atualizada com sucesso!');
     },
@@ -113,11 +117,14 @@ export function useUsers() {
     updateRole,
     toggleUserStatus,
     stats,
-    refetch
+    refetch,
+    page,
+    setPage,
+    pageSize,
+    setPageSize
   };
 }
 
-// Hook auxiliar atualizado para olhar apenas profiles
 export function useCurrentUserRole() {
   return useQuery({
     queryKey: ['current-user-role'],
