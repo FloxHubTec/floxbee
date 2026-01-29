@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import NotificationBell from './NotificationBell';
 
 // Tipagem alinhada com o banco de dados
 export type AppRole = 'superadmin' | 'admin' | 'supervisor' | 'agente';
@@ -183,6 +184,10 @@ const AppSidebar: React.FC = () => {
         </div>
 
         <div className="space-y-1">
+          <div className="px-4 py-2">
+            <NotificationBell />
+          </div>
+
           <NavLink
             to="/settings"
             className={({ isActive }) =>

@@ -7,6 +7,10 @@ import {
     Circle,
     CheckCircle2,
     Loader2,
+    Search,
+    Filter,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -74,6 +78,12 @@ const NotificationSettings: React.FC = () => {
     const [showDialog, setShowDialog] = useState(false);
     const [editingSetting, setEditingSetting] = useState<TicketNotificationSetting | null>(null);
     const [deletingSetting, setDeletingSetting] = useState<TicketNotificationSetting | null>(null);
+
+    // Estados para Filtro e Paginação
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 6;
 
     // Form state
     const [evento, setEvento] = useState('status_change');
@@ -203,6 +213,22 @@ const NotificationSettings: React.FC = () => {
         return STATUS_OPTIONS.find((s) => s.value === statusValue)?.label || statusValue;
     };
 
+    const filteredSettings = settings.filter(setting => {
+        const matchesSearch = getEventoLabel(setting.evento).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (setting.mensagem_template || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesStatus = statusFilter === 'all' ||
+            (statusFilter === 'active' ? setting.ativo : !setting.ativo);
+
+        return matchesSearch && matchesStatus;
+    });
+
+    const totalPages = Math.ceil(filteredSettings.length / itemsPerPage);
+    const paginatedSettings = filteredSettings.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-8">
@@ -229,13 +255,38 @@ const NotificationSettings: React.FC = () => {
                 </Button>
             </div>
 
-            {settings.length === 0 ? (
+            <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Buscar por evento ou mensagem..."
+                        className="pl-9"
+                        value={searchTerm}
+                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    />
+                </div>
+                <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <div className="flex items-center gap-2">
+                            <Filter className="w-3.5 h-3.5" />
+                            <SelectValue placeholder="Status" />
+                        </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Todos Status</SelectItem>
+                        <SelectItem value="active">Ativas</SelectItem>
+                        <SelectItem value="inactive">Inativas</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {filteredSettings.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                         <Bell className="w-12 h-12 text-muted-foreground opacity-50 mb-4" />
-                        <p className="text-muted-foreground mb-2">Nenhuma regra configurada</p>
+                        <p className="text-muted-foreground mb-2">Nenhuma regra encontrada</p>
                         <p className="text-sm text-muted-foreground mb-4">
-                            Crie sua primeira regra de notificação automática
+                            Tente ajustar seus filtros ou crie uma nova regra.
                         </p>
                         <Button onClick={() => openDialog()} variant="outline" className="gap-2">
                             <Plus className="w-4 h-4" />
@@ -245,7 +296,7 @@ const NotificationSettings: React.FC = () => {
                 </Card>
             ) : (
                 <div className="space-y-3">
-                    {settings.map((setting) => (
+                    {paginatedSettings.map((setting) => (
                         <Card key={setting.id}>
                             <CardContent className="p-4">
                                 <div className="flex items-start justify-between">
@@ -310,6 +361,34 @@ const NotificationSettings: React.FC = () => {
                             </CardContent>
                         </Card>
                     ))}
+                </div>
+            )}
+
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between px-2 py-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                        Página {currentPage} de {totalPages}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            Anterior
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                        >
+                            Próximo
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
+                    </div>
                 </div>
             )}
 
