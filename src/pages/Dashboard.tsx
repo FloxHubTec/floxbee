@@ -56,11 +56,13 @@ import {
   useActiveAgents,
   useCampaignsSummary,
 } from '@/hooks/useDashboard';
+import { useTenant } from '@/hooks/useTenant';
 import { exportDashboardToPDF } from '@/lib/exportPDF';
 import { toast } from 'sonner';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 const Dashboard: React.FC = () => {
+  const { config } = useTenant();
   const [dateRange, setDateRange] = React.useState({
     from: startOfDay(new Date()).toISOString(),
     to: endOfDay(new Date()).toISOString(),
@@ -93,18 +95,19 @@ const Dashboard: React.FC = () => {
     setSelectedAgent('all');
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!metrics || !campaignsSummary) {
       toast.error('Aguarde os dados carregarem antes de exportar');
       return;
     }
 
     try {
-      const fileName = exportDashboardToPDF({
+      const fileName = await exportDashboardToPDF({
         metrics,
         campaignsSummary,
         ticketsByStatus,
         activeAgents,
+        branding: config.branding,
         filters: {
           startDate: filters.startDate,
           endDate: filters.endDate,
