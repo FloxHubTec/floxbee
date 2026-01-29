@@ -44,7 +44,7 @@ import { toast } from 'sonner';
 const EditProfileDialog: React.FC<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialData: { nome: string; telefone: string };
+  initialData: { nome: string; telefone: string; matricula: string };
   onSuccess: () => void;
 }> = ({ open, onOpenChange, initialData, onSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -65,7 +65,8 @@ const EditProfileDialog: React.FC<{
         .from('profiles')
         .update({
           nome: formData.nome,
-          telefone: formData.telefone
+          telefone: formData.telefone,
+          matricula: formData.matricula
         })
         .eq('user_id', user.id);
 
@@ -113,6 +114,16 @@ const EditProfileDialog: React.FC<{
               disabled={loading}
             />
             <p className="text-xs text-muted-foreground">Utilize apenas números com DDD.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="matricula">Matrícula</Label>
+            <Input
+              id="matricula"
+              value={formData.matricula}
+              onChange={(e) => setFormData(prev => ({ ...prev, matricula: e.target.value }))}
+              placeholder="Número da sua matrícula"
+              disabled={loading}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
@@ -315,7 +326,8 @@ const Settings: React.FC = () => {
               onOpenChange={setIsEditProfileOpen}
               initialData={{
                 nome: profile?.nome || '',
-                telefone: profile?.telefone || ''
+                telefone: profile?.telefone || '',
+                matricula: profile?.matricula || ''
               }}
               onSuccess={handleProfileSuccess}
             />

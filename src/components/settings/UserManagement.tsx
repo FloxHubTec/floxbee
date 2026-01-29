@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Users, Shield, Crown, UserCheck, Search, ShieldAlert, Briefcase,
-  MoreVertical, Pencil, Trash2, Key
+  MoreVertical, Pencil, Trash2, Key, Mail, Copy
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -232,6 +232,11 @@ const UserManagement: React.FC = () => {
     toggleUserStatus.mutate({ id: targetUser.id, ativo: !targetUser.ativo });
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("E-mail copiado!");
+  };
+
   const UserList = ({ data }: { data: UserWithRole[] }) => (
     <div className="space-y-3">
       {data.length === 0 ? (
@@ -248,7 +253,7 @@ const UserManagement: React.FC = () => {
           return (
             <div
               key={user.id}
-              className={`flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border transition-all ${user.ativo ? 'bg-card hover:border-primary/30' : 'bg-muted/30 opacity-70'
+              className={`group flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border transition-all ${user.ativo ? 'bg-card hover:border-primary/30' : 'bg-muted/30 opacity-70'
                 }`}
             >
               {/* Info do Usuário */}
@@ -266,7 +271,14 @@ const UserManagement: React.FC = () => {
                     {isSelf && <Badge variant="outline" className="h-5 text-[10px] border-primary/40 text-primary">Você</Badge>}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{user.email}</span>
+                    <Mail className="w-3.5 h-3.5" />
+                    <span
+                      className="hover:text-primary cursor-pointer transition-colors flex items-center gap-1"
+                      onClick={() => user.email && copyToClipboard(user.email)}
+                    >
+                      {user.email}
+                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </span>
                     {user.created_by && isSuperadmin && (
                       <span className="text-[10px] bg-muted px-1.5 rounded" title="ID do Criador">
                         Criado por: {user.created_by === currentProfile?.id ? 'Mim' : 'Outro Admin'}
@@ -361,6 +373,18 @@ const UserManagement: React.FC = () => {
                 value={editForm.nome}
                 onChange={(e) => setEditForm(prev => ({ ...prev, nome: e.target.value }))}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>E-mail de Acesso</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={editingUser?.email || ''}
+                  disabled
+                  className="pl-10 bg-muted/50 cursor-not-allowed"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

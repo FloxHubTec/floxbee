@@ -79,10 +79,11 @@ serve(async (req) => {
         .from("profiles")
         .update({
           nome: nome,
-          role: role || 'agente',       // <--- Agora salvamos direto no profile
-          permissions: permissions || {}, // <--- Agora salvamos direto no profile
+          email: email,             // <--- Adicionado para persistência correta
+          role: role || 'agente',
+          permissions: permissions || {},
           created_by: created_by || null,
-          owner_id: owner_id,             // <--- Multi-tenancy
+          owner_id: owner_id,
           ativo: true,
           must_change_password: true // Novos usuários precisam trocar a senha
         })
