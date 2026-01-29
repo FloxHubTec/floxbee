@@ -258,9 +258,25 @@ const Departments: React.FC = () => {
                                                     </DropdownMenu>
                                                 </div>
                                                 {department.description && (
-                                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
                                                         {department.description}
                                                     </p>
+                                                )}
+
+                                                {department.agents_names && department.agents_names.length > 0 && (
+                                                    <div className="mt-3 pt-3 border-t border-border">
+                                                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 flex items-center gap-1">
+                                                            <Users className="w-3 h-3" />
+                                                            Equipe:
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {department.agents_names.map((name, idx) => (
+                                                                <Badge key={idx} variant="outline" className="text-[10px] py-0 px-1 bg-muted/50">
+                                                                    {name}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 )}
                                             </CardContent>
                                         </Card>
@@ -319,9 +335,25 @@ const Departments: React.FC = () => {
                                                     </DropdownMenu>
                                                 </div>
                                                 {department.description && (
-                                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
                                                         {department.description}
                                                     </p>
+                                                )}
+
+                                                {department.agents_names && department.agents_names.length > 0 && (
+                                                    <div className="mt-3 pt-3 border-t border-border">
+                                                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 flex items-center gap-1">
+                                                            <Users className="w-3 h-3" />
+                                                            Equipe:
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {department.agents_names.map((name, idx) => (
+                                                                <Badge key={idx} variant="outline" className="text-[10px] py-0 px-1 bg-muted/50">
+                                                                    {name}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 )}
                                             </CardContent>
                                         </Card>
