@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -411,23 +411,19 @@ const Auth = () => {
             Ao continuar, você concorda com nossos
           </p>
           <div className="flex items-center justify-center gap-4 text-xs">
-            <a
-              href="/termos-de-uso"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/termos-de-uso"
               className="text-primary hover:underline font-medium"
             >
               Termos de Uso
-            </a>
+            </Link>
             <span className="text-muted-foreground">•</span>
-            <a
-              href="/politica-de-privacidade"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/politica-de-privacidade"
               className="text-primary hover:underline font-medium"
             >
               Política de Privacidade
-            </a>
+            </Link>
           </div>
         </div>
 
