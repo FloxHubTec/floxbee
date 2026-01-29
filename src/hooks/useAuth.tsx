@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 // Definição robusta do Perfil baseada no seu JSON real
 export interface Profile {
@@ -16,7 +17,7 @@ export interface Profile {
   ativo: boolean;
   must_change_password: boolean | null;
   // Campos de controle de Tenant
-  created_by: string | null; 
+  created_by: string | null;
   owner_id?: string | null; // Caso você tenha adicionado essa coluna explicitamente
 }
 
@@ -54,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Pequeno delay para garantir que triggers de banco (handle_new_user) tenham tempo de rodar em novos cadastros
         setTimeout(() => {
           fetchUserData(session.user.id);
-        }, 100); 
+        }, 100);
       } else {
         // Logout: Limpa tudo
         setProfile(null);
@@ -91,10 +92,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (data) {
+        // --- VERIFICAÇÃO DE STATUS ATIVO ---
+        if (data.ativo === false) {
+          console.warn("🚫 Usuário inativo. Bloqueando acesso.");
+          toast.error("Sua conta está inativa. Entre em contato com o administrador.");
+          signOut();
+          return;
+        }
+
+        // Se tiver owner_id e não for o próprio (herdeiro), verificar se o dono está ativo
+        if (data.owner_id && data.owner_id !== data.id) {
+          const { data: ownerData } = await supabase
+            .from("profiles")
+            .select("ativo")
+            .eq("id", data.owner_id)
+            .maybeSingle();
+
+          if (ownerData && ownerData.ativo === false) {
+            console.warn("🚫 Organização inativa. Bloqueando acesso.");
+            toast.error("O acesso da sua organização foi suspenso. Entre em contato com o suporte.");
+            signOut();
+            return;
+          }
+        }
+
         // Garantir que permissions seja um objeto, mesmo que venha null
         const safeProfile = {
-            ...data,
-            permissions: data.permissions || {} 
+          ...data,
+          permissions: data.permissions || {}
         } as Profile;
 
         console.log("✅ Perfil carregado:", safeProfile.nome, "| Role:", safeProfile.role);
@@ -128,15 +153,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Superadmin: Acesso total
   const isSuperadmin = currentRole === "superadmin";
-  
+
   // Admin: É Admin OU Superadmin
   const isAdmin = currentRole === "admin" || isSuperadmin;
-  
+
   // Supervisor: É Supervisor OU Admin OU Superadmin
   const isSupervisor = currentRole === "supervisor" || isAdmin;
-  
+
   // Agente: Todos são agentes no mínimo
-  const isAgente = true; 
+  const isAgente = true;
 
   const mustChangePassword = profile?.must_change_password ?? false;
 

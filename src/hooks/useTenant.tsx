@@ -6,6 +6,7 @@ import { useAuth } from './useAuth';
 
 interface TenantContextType {
   config: TenantConfig;
+  ownerId: string | undefined;
   updateConfig: (newConfig: Partial<TenantConfig>) => Promise<void>;
   loading: boolean;
 }
@@ -120,8 +121,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const currentOwnerId = profile?.role === 'admin' || profile?.role === 'superadmin'
+    ? profile?.id
+    : profile?.created_by || profile?.id;
+
   return (
-    <TenantContext.Provider value={{ config, updateConfig, loading }}>
+    <TenantContext.Provider value={{ config, ownerId: currentOwnerId, updateConfig, loading }}>
       {children}
     </TenantContext.Provider>
   );

@@ -180,7 +180,7 @@ Regras importantes:
     enableCampaigns: true,
     enableAutomations: true,
     enableAI: true,
-    enablePublicRegister: true,
+    enablePublicRegister: false,
     enableAPIAccess: true,
   },
 

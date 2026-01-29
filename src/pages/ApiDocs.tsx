@@ -23,6 +23,7 @@ import {
   CollapsibleTrigger
 } from '@/components/ui/collapsible';
 import FloxBeeLogo from '@/components/FloxBeeLogo';
+import { useTenant } from '@/hooks/useTenant';
 
 interface Endpoint {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -40,186 +41,6 @@ interface ApiSection {
   endpoints: Endpoint[];
 }
 
-const API_SECTIONS: ApiSection[] = [
-  {
-    title: 'WhatsApp - Envio de Mensagens',
-    icon: Send,
-    description: 'Endpoints para envio de mensagens individuais e em massa via WhatsApp Business API',
-    endpoints: [
-      {
-        method: 'POST',
-        path: '/functions/v1/whatsapp-send',
-        description: 'Enviar mensagem individual para um contato',
-        requestBody: {
-          to: '5511999999999',
-          message: 'Olá, {{nome}}! Esta é uma mensagem de teste.',
-          type: 'text',
-          owner_id: 'uuid-do-dono',
-        },
-        responseExample: {
-          messaging_product: 'whatsapp',
-          contacts: [{ input: '5511999999999', wa_id: '5511999999999' }],
-          messages: [{ id: 'wamid.xxx' }],
-        },
-      },
-      {
-        method: 'POST',
-        path: '/functions/v1/whatsapp-send/bulk',
-        description: 'Enviar mensagem para múltiplos destinatários',
-        requestBody: {
-          recipients: ['5511999999999', '5511888888888'],
-          message: 'Mensagem em massa',
-          owner_id: 'uuid-do-dono',
-          delay_ms: 100,
-        },
-        responseExample: {
-          results: [
-            { recipient: '5511999999999', success: true, messageId: 'wamid.xxx' },
-            { recipient: '5511888888888', success: true, messageId: 'wamid.yyy' },
-          ],
-          summary: { total: 2, success: 2, failed: 0 },
-        },
-      },
-    ],
-  },
-  {
-    title: 'Campanhas',
-    icon: Megaphone,
-    description: 'Gerenciar campanhas de comunicação em massa',
-    endpoints: [
-      {
-        method: 'POST',
-        path: '/functions/v1/campaign-send',
-        description: 'Criar e enviar uma campanha',
-        requestBody: {
-          recipients: [{ whatsapp: '5511999999999', nome: 'João', id: 'uuid' }],
-          message_template: 'Olá {{nome}}, nova campanha disponível!',
-          campaign_id: 'uuid-da-campanha',
-          frequency_limit_hours: 24,
-          bypass_frequency_check: false,
-        },
-        responseExample: {
-          success: true,
-          summary: {
-            total: 100,
-            sent: 95,
-            failed: 3,
-            blocked_by_frequency: 2,
-          },
-        },
-      },
-    ],
-  },
-  {
-    title: 'Importação de Contatos',
-    icon: Users,
-    description: 'Importar e validar contatos em massa',
-    endpoints: [
-      {
-        method: 'POST',
-        path: '/functions/v1/import-contacts',
-        description: 'Importar contatos de uma planilha',
-        requestBody: {
-          data: [
-            { col_a: 'João Silva', col_b: '11999999999', col_c: 'joao@email.com' },
-          ],
-          column_mapping: {
-            nome: 'col_a',
-            whatsapp: 'col_b',
-            email: 'col_c',
-          },
-          validate_whatsapp: true,
-          skip_duplicates: true,
-        },
-        responseExample: {
-          summary: { total: 100, valid: 95, invalid: 5 },
-          preview: [{ nome: 'João Silva', whatsapp: '5511999999999' }],
-          invalid_rows: [{ row: 5, errors: ['WhatsApp inválido'] }],
-        },
-      },
-      {
-        method: 'POST',
-        path: '/functions/v1/validate-whatsapp',
-        description: 'Validar números de WhatsApp',
-        requestBody: {
-          numbers: ['11999999999', '11888888888'],
-        },
-        responseExample: {
-          results: [
-            { number: '5511999999999', valid: true, exists_on_whatsapp: true },
-            { number: '5511888888888', valid: true, exists_on_whatsapp: false },
-          ],
-          summary: { total: 2, valid: 2, on_whatsapp: 1 },
-        },
-      },
-    ],
-  },
-  {
-    title: 'Webhook WhatsApp',
-    icon: Webhook,
-    description: 'Receber notificações de mensagens e status do WhatsApp',
-    endpoints: [
-      {
-        method: 'GET',
-        path: '/functions/v1/whatsapp-webhook',
-        description: 'Verificação do webhook (usado pelo Facebook)',
-        headers: ['hub.mode', 'hub.verify_token', 'hub.challenge'],
-        responseExample: {
-          note: 'Retorna hub.challenge se token válido',
-        },
-      },
-      {
-        method: 'POST',
-        path: '/functions/v1/whatsapp-webhook',
-        description: 'Receber mensagens e status updates',
-        requestBody: {
-          object: 'whatsapp_business_account',
-          entry: [
-            {
-              id: 'WHATSAPP_BUSINESS_ACCOUNT_ID',
-              changes: [
-                {
-                  field: 'messages',
-                  value: {
-                    messages: [{ from: '5511999999999', text: { body: 'Olá' } }],
-                  },
-                },
-              ],
-            },
-          ],
-        },
-        responseExample: { success: true },
-      },
-    ],
-  },
-  {
-    title: 'Chat com IA',
-    icon: Bot,
-    description: 'Interagir com o assistente de IA',
-    endpoints: [
-      {
-        method: 'POST',
-        path: '/functions/v1/ai-chat',
-        description: 'Enviar mensagem para o chat de IA',
-        requestBody: {
-          messages: [
-            { role: 'user', content: 'Qual é o prazo para recadastramento?' },
-          ],
-          context: {
-            contact_name: 'João Silva',
-            contact_id: 'uuid',
-            owner_id: 'uuid-do-dono',
-          },
-          stream: false,
-        },
-        responseExample: {
-          response: 'O prazo para recadastramento é até o dia 30 deste mês.',
-          transfer_to_human: false,
-        },
-      },
-    ],
-  },
-];
 
 const CodeBlock: React.FC<{ code: string; language?: string }> = ({ code }) => {
   const [copied, setCopied] = useState(false);
@@ -339,18 +160,169 @@ const EndpointCard: React.FC<{ endpoint: Endpoint; baseUrl: string }> = ({ endpo
 };
 
 const ApiDocs: React.FC = () => {
+  const { config, ownerId } = useTenant();
   const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xgyzfwwxbulbegrjvtfr.supabase.co';
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'SUA_CHAVE_AQUI';
+
+  const API_SECTIONS: ApiSection[] = [
+    {
+      title: 'WhatsApp - Envio de Mensagens',
+      icon: Send,
+      description: 'Endpoints para envio de mensagens individuais e em massa via WhatsApp Business API',
+      endpoints: [
+        {
+          method: 'POST',
+          path: '/functions/v1/whatsapp-send',
+          description: 'Enviar mensagem individual para um contato',
+          requestBody: {
+            to: '5511999999999',
+            message: 'Olá, {{nome}}! Esta é uma mensagem de teste.',
+            type: 'text',
+            owner_id: ownerId || 'uuid-do-dono',
+          },
+          responseExample: {
+            messaging_product: 'whatsapp',
+            contacts: [{ input: '5511999999999', wa_id: '5511999999999' }],
+            messages: [{ id: 'wamid.xxx' }],
+          },
+        },
+        {
+          method: 'POST',
+          path: '/functions/v1/whatsapp-send/bulk',
+          description: 'Enviar mensagem para múltiplos destinatários',
+          requestBody: {
+            recipients: ['5511999999999', '5511888888888'],
+            message: 'Mensagem em massa',
+            owner_id: ownerId || 'uuid-do-dono',
+            delay_ms: 100,
+          },
+          responseExample: {
+            results: [
+              { recipient: '5511999999999', success: true, messageId: 'wamid.xxx' },
+              { recipient: '5511888888888', success: true, messageId: 'wamid.yyy' },
+            ],
+            summary: { total: 2, success: 2, failed: 0 },
+          },
+        },
+      ],
+    },
+    {
+      title: 'Campanhas',
+      icon: Megaphone,
+      description: 'Gerenciar campanhas de comunicação em massa',
+      endpoints: [
+        {
+          method: 'POST',
+          path: '/functions/v1/campaign-send',
+          description: 'Criar e enviar uma campanha',
+          requestBody: {
+            recipients: [{ whatsapp: '5511999999999', nome: 'João', id: 'uuid' }],
+            message_template: 'Olá {{nome}}, nova campanha disponível!',
+            campaign_id: 'uuid-da-campanha',
+            frequency_limit_hours: 24,
+            bypass_frequency_check: false,
+          },
+          responseExample: {
+            success: true,
+            summary: {
+              total: 100,
+              sent: 95,
+              failed: 3,
+              blocked_by_frequency: 2,
+            },
+          },
+        },
+      ],
+    },
+    {
+      title: 'Importação de Contatos',
+      icon: Users,
+      description: 'Importar e validar contatos em massa',
+      endpoints: [
+        {
+          method: 'POST',
+          path: '/functions/v1/import-contacts',
+          description: 'Importar contatos de uma planilha',
+          requestBody: {
+            data: [
+              { col_a: 'João Silva', col_b: '11999999999', col_c: 'joao@email.com' },
+            ],
+            column_mapping: {
+              nome: 'col_a',
+              whatsapp: 'col_b',
+              email: 'col_c',
+            },
+            validate_whatsapp: true,
+            skip_duplicates: true,
+          },
+          responseExample: {
+            summary: { total: 100, valid: 95, invalid: 5 },
+            preview: [{ nome: 'João Silva', whatsapp: '5511999999999' }],
+            invalid_rows: [{ row: 5, errors: ['WhatsApp inválido'] }],
+          },
+        },
+        {
+          method: 'POST',
+          path: '/functions/v1/validate-whatsapp',
+          description: 'Validar números de WhatsApp',
+          requestBody: {
+            numbers: ['11999999999', '11888888888'],
+          },
+          responseExample: {
+            results: [
+              { number: '5511999999999', valid: true, exists_on_whatsapp: true },
+              { number: '5511888888888', valid: true, exists_on_whatsapp: false },
+            ],
+            summary: { total: 2, valid: 2, on_whatsapp: 1 },
+          },
+        },
+      ],
+    },
+    {
+      title: 'Chat com IA',
+      icon: Bot,
+      description: 'Interagir com o assistente de IA',
+      endpoints: [
+        {
+          method: 'POST',
+          path: '/functions/v1/ai-chat',
+          description: 'Enviar mensagem para o chat de IA',
+          requestBody: {
+            messages: [
+              { role: 'user', content: 'Qual é o prazo para recadastramento?' },
+            ],
+            context: {
+              contact_name: 'João Silva',
+              contact_id: 'uuid',
+              owner_id: ownerId || 'uuid-do-dono',
+            },
+            stream: false,
+          },
+          responseExample: {
+            response: 'O prazo para recadastramento é até o dia 30 deste mês.',
+            transfer_to_human: false,
+          },
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="h-full overflow-auto bg-background">
       <div className="max-w-5xl mx-auto p-6 space-y-8">
         {/* Header */}
         <div className="flex items-center gap-4 pb-6 border-b border-border">
-          <FloxBeeLogo size={40} />
+          {config.branding?.logo_url ? (
+            <img src={config.branding.logo_url} alt="Logo" className="h-10 w-auto" />
+          ) : (
+            <FloxBeeLogo size={40} />
+          )}
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Documentação da API</h1>
+            <h1 className="text-3xl font-bold text-foreground">
+              Documentação da API - {config.branding?.name || 'FloxHub'}
+            </h1>
             <p className="text-muted-foreground">
-              Integre seus sistemas com a plataforma FloxHub
+              Integre seus sistemas com a tecnologia da {config.branding?.name || 'nossa plataforma'}
             </p>
           </div>
         </div>
@@ -360,39 +332,44 @@ const ApiDocs: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Introdução
+              Introdução e Autenticação
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              A API do FloxHub permite integrar sistemas externos com nossa plataforma de atendimento.
-              Todas as requisições devem incluir o header de autorização com a chave anônima.
+              A API {config.branding?.name || 'do FloxHub'} utiliza os Edge Functions do Supabase para garantir alta performance e escalabilidade.
+              Todas as requisições devem ser autenticadas para garantir a segurança dos dados.
             </p>
 
-            <div>
-              <p className="text-sm font-medium mb-2">Base URL:</p>
-              <CodeBlock code={baseUrl} />
-            </div>
-
-            <div>
-              <p className="text-sm font-medium mb-2">Headers Obrigatórios:</p>
-              <CodeBlock
-                code={`Content-Type: application/json
-Authorization: Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.slice(0, 20)}...`}
-              />
+            <div className="p-4 bg-primary/5 border border-primary/10 rounded-lg space-y-3">
+              <h3 className="font-semibold text-sm">Seus Dados de Acesso:</h3>
+              <div className="grid gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">Identificador da Empresa (owner_id)</p>
+                  <CodeBlock code={ownerId || 'Não carregado'} />
+                  <p className="text-[10px] text-muted-foreground mt-1 italic">Envie este ID no campo `owner_id` das requisições para vincular as mensagens à sua conta.</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">Chave de API (Anon Key)</p>
+                  <CodeBlock code={anonKey} />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1 uppercase font-bold tracking-wider">Base URL das Funções</p>
+                  <CodeBlock code={`${baseUrl}/functions/v1`} />
+                </div>
+              </div>
             </div>
 
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
               <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                <strong>Nota:</strong> Para operações que requerem autenticação de usuário,
-                utilize o token JWT do usuário logado no header Authorization.
+                <strong>Segurança:</strong> Nunca compartilhe sua Chave de API ou expunha-a em código frontend público sem as devidas políticas de RLS.
               </p>
             </div>
           </CardContent>
         </Card>
 
         {/* API Sections */}
-        <Tabs defaultValue="whatsapp" className="space-y-4">
+        <Tabs defaultValue="whatsapp---envio-de-mensagens" className="space-y-4">
           <TabsList className="flex flex-wrap h-auto gap-2">
             {API_SECTIONS.map((section) => (
               <TabsTrigger key={section.title} value={section.title.toLowerCase().replace(/\s+/g, '-')}>
