@@ -599,6 +599,31 @@ export default function TenantSettings() {
             </Card>
 
             <Card>
+              <CardHeader><CardTitle>Configurações de Comunicação</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/10">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2"><Zap className="h-4 w-4 text-primary" /> Controle de Frequência</Label>
+                    <p className="text-xs text-muted-foreground">Intervalo mínimo (horas) para repetir campanhas para o mesmo contato</p>
+                  </div>
+                  <div className="w-32">
+                    <Input
+                      type="number"
+                      value={localConfig.communicationConfig?.frequencyLimitHours || 24}
+                      onChange={e => setLocalConfig({
+                        ...localConfig,
+                        communicationConfig: {
+                          ...localConfig.communicationConfig,
+                          frequencyLimitHours: parseInt(e.target.value) || 0
+                        }
+                      })}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader><CardTitle>Módulos do Sistema</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 gap-4">
                 {Object.entries(localConfig.features).map(([key, val]) => (

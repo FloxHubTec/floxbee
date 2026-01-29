@@ -1,0 +1,161 @@
+A presente contratação tem por objetivo geral a implementação e a contratação
+de uma solução moderna e integrada de comunicação digital que permita a otimização
+da troca de informações entre a Secretaria Municipal de Administração de Varginha
+demais Secretarias, assim como os respectivos servidores, com foco em atendimento
+eficiente, personalização e gestão de dados.
+2.2. A solução proposta, através de plataforma, visa:
+e
+2.2.1. Unificar e organizar os canais de comunicação da Secretaria de
+Administração: A plataforma deverá oferecer uma interface unificada para
+gerenciar todas as interações e campanhas, eliminando a dispersão de informações
+e garantindo consistência na comunicação;
+2.2.2. Usufruir e expandir a base de dados de servidores para um melhor
+gerenciamento das informações: A funcionalidade de importação e gerenciamento
+de bases de dados deverá permite consolidar informações existentes e enriquecêlas continuamente;
+2.2.3. Promover a captação de novos dados dos servidores: Através de formulários
+online, QR codes e integração direta com o WhatsApp, a plataforma simplifica o
+processo de coleta de dados atualizados e novos registros;
+2.2.4. Automatizar as campanhas de comunicação e o envio de mensagens diretas:
+A plataforma deverá automatizar o envio de comunicações segmentadas e
+personalizadas, liberando recursos humanos para tarefas mais estratégicas;
+2.2.5. Reduzir custos operacionais e o tempo de espera no atendimento ao
+servidor: A inteligência artificial integrada a solução no WhatsApp minimiza a
+necessidade de intervenção humana em demandas rotineiras, resultando em
+maior agilidade e eficiência;
+2.2.6. Fortalecer a confiança e a transparência da gestão municipal: Ao
+proporcionar uma comunicação rápida, clara e acessível, a plataforma contribui
+para uma maior percepção de transparência e eficiência por parte dos servidores.
+3. CONDIÇÕES DE EXECUÇÃO DO OBJETO:
+3.1. Local e horário da prestação dos serviços
+A execução da cessão de direito de uso de sistema para automatização de
+atendimento via WhatsApp, bem como instalação, implantação, treinamento e
+suporte técnico será na sede da Prefeitura Municipal de Varginha, sito a Rua Júlio
+Paulo Marcellini, n°. 50, Vila Paiva – Varginha-MG.
+3.2. Das Especificações Técnicas dos Serviços / Requisitos Mínimos:
+3.2.1. Para a execução do objeto contratado, deverá ser observada as seguintes
+especificações:
+3.2.1.1. Atendimento e Interação por WhatsApp - Atendimento por WhatsApp com Inteligência Artificial (IA): A plataforma deverá incorporar um módulo de atendimento
+via WhatsApp dotado de inteligência artificial de ponta, plenamente capaz de interagir
+com os servidores. Este módulo assegura "Atendimento 24 horas por dia, 7 dias por
+semana", garantindo que "Os servidores poderão obter informações e suporte a
+qualquer hora do dia, sem limitações ao horário de expediente". A IA deverá
+automatizar respostas para dúvidas frequentes, como segunda via de documentos,
+informações de serviços e prazos,proporcionando a "Redução do tempo de espera
+para respostas em demandas simples".
+a) Múltiplos Agentes de Atendimento: A solução deverá suportar, de forma
+transparente, a atuação colaborativa de múltiplos agentes humanos em conjunto
+com a IA. Deverá, ainda, possuir funcionalidade avançada para a "Identificação e
+encaminhamento automático de demandas mais complexas para equipes
+humanas", permitindo que as "equipes humanas foquem em atendimentos
+específicos e mais complexos", otimizando a distribuição de trabalho e a
+qualidade do suporte.
+b) Integração Direta da Inteligência Artificial com o CRM: A plataforma deverá
+promover a integração profunda da IA com o seu CRM. Essa capacidade vital
+permite que "O chat com IA possa personalizar o atendimento com base nos
+dados do servidor, resultando em uma experiência de atendimento mais
+relevante, proativa e eficiente para cada servidor.
+3.2.1.2. Gestão de Relacionamento com o Servidor (CRM)
+a) CRM para Gestão e Controle de Demandas: O sistema deverá dispor de um
+módulo de CRM intrínseco e altamente robusto, meticulosamente projetado
+para a gestão e o controle exaustivo de todas as demandas e interações com os
+servidores. Este CRM executa o "Registro automático de todas as interações,
+permitindo análises detalhadas sobre as demandas" e, crucialmente, a geração
+de "Relatórios em tempo real das principais solicitações e necessidades,
+auxiliando na tomada de decisão para planejamentos futuros".
+b) Visualização das Mensagens de WhatsApp Integrado nas Demandas:
+Dentro do ambiente intuitivo do CRM, será plenamente possível visualizar o
+histórico completo e contextualizado das conversas realizadas via WhatsApp,
+associadas diretamente a cada demanda ou perfil de usuário/servidor. Esta
+funcionalidade assegura uma continuidade ininterrupta no atendimento e um
+contexto aprofundado para os agentes.
+3.2.1.3. Вase de Dados de Usuários e Captação de Dados
+a) Base Unificada de Usuários/Servidores: A solução provê uma base de dados
+centralizada e unificada, concebida para o registro e o gerenciamento eficaz das informações de todos os servidores da Secretaria de Administração. Este recurso
+é vital para "Aproveitar a base de dados existente para um melhor
+gerenciamento das informações sobre os servidores".
+b) Cadastro na Base através de Interações do WhatsApp: O sistema deverá
+permitir a captação e o registro automático de novos servidores na base de
+P &
+dados, diretamente a partir das interações realizadas via WhatsApp. Esta
+funcionalidade contribui diretamente para a "Facilitação da captação de novos
+dados por meio de [...] Integração com ferramentas como WhatsApp".
+c) Cadastro na Base por Landing Pages: A plataforma deverá oferecer a
+capacidade de criar e gerenciar landing pages dinâmicas com formulários
+integrados, permitindo o cadastro de servidores de forma autônoma e eficiente,
+ampliando os pontos de entrada para a base de dados.
+d) Cadastro na Base por Formulários Integrados: A plataforma deverá
+possibilitar a criação e interação de formulários online para a "captação de
+novos dados";
+e) Cadastro na Base por Importação de Planilhas: Para facilitar a migração de
+dados preexistentes e a atualização em massa, o sistema deverá possuir uma
+funcionalidade robusta para importação de dados de usuários via planilhas,
+inclusive no formato Libre Office, suportando de forma eficaz a "Importação da
+base de dados para o sistema";
+f) Verificação e Validação do Número de WhatsApp: A plataforma deverá
+incluir mecanismos avançados para verificar e validar a existência e a
+funcionalidade dos números de WhatsApp cadastrados, garantindo assim a
+qualidade superior da base de contatos e a efetividade máxima das
+comunicações enviadas.
+3.2.1.4. Automação e Campanhas de Comunicação
+a) Criação de Mensagens Padronizadas para Envio: A plataforma deverá permitir a criação, edição e o armazenamento de templates de mensagens
+padronizadas. Estas podem ser utilizadas tanto pela IA para automações quanto
+pelos agentes humanos, garantindo consistência, agilidade e qualidade na comunicação. Esta funcionalidade é fundamental para a "Automação de respostas para dúvidas frequentes".
+b) Automação de Envio de Mensagens em Eventos Específicos: O sistema deverá ser plenamente capaz de automatizar o envio de mensagens personalizadas em resposta a eventos predefinidos, tais como:
+b.1 - Mensagens de Boas-Vindas para novos cadastros/usuários.
+b.2 - Mensagens de Aniversário para servidores.
+b.3 Notificações sobre a abertura, andamento ou encerramento de
+demandas. Esta funcionalidade é um pilar crucial para "Automatizar as
+campanhas de comunicação e as mensagens diretas para agilizar o
+atendimento e o envio de informações relevantes";
+c) Automação e Campanhas de Comunicação:
+c.1) Criação e Envio de Campanhas de WhatsApp: A solução deverá oferecer
+ferramentas intuitivas e poderosas para a criação e o envio em massa de
+campanhas de comunicação via WhatsApp. Isso possibilita a "Divulgação de
+campanhas e informações essenciais, como eventos da prefeitura, prazos de
+programas sociais e alerta de emergências", garantindo que a informação
+correta chegue ao servidor certo.
+c.2) Controle das Campanhas Enviadas: A plataforma deverá incluir um módulo
+completo para monitorar e gerenciar todas as campanhas de WhatsApp
+enviadas, abrangendo status de entrega, visualizações e interações. Isso permite
+o acompanhamento do "Aumento no engajamento dos usuários/servidores por
+meio de campanhas automatizadas e personalizadas", oferecendo insights
+valiosos.
+c.3) Controle da Frequência de Envio por Usuário: Para evitar a sobrecarga de
+mensagens e garantir uma experiência positiva e não intrusiva para o
+usuário/servidor, o sistema deverá possuir mecanismos inteligentes para
+controlar a frequência máxima de envio de mensagens e campanhas para cada
+contato individual.
+3.2.1.5.Análise de Desempenho e Integração Técnica
+a) Dashboard de Análise de Métricas de Mensagens Enviadas: A plataforma
+deverá apresentar um dashboard analítico intuitivo e altamente personalizável
+para a análise aprofundada de métricas relacionadas às mensagens enviadas,
+como taxas de entrega, leitura, cliques e respostas. Este recurso é fundamental
+para atender à necessidade de "Relatórios em tempo real das principais
+solicitações e necessidades, auxiliando na tomada de decisão para
+planejamentos futuros".
+b) API Própria para Integração de Softwares de Terceiros: O sistema deverá
+disponibilizar uma Application Programming Interface (API) robusta e
+meticulosamente documentada. Esta API permite a integração fluida com outros
+softwares e sistemas existentes na prefeitura ou de terceiros, garantindo a
+interoperabilidade e a capacidade de expansão futura da solução, conforme as
+necessidades da Secretaria evoluírem.
+3.2.2. - Requisitos Mínimos
+3.2.2.1 - Acessibilidade: A plataforma é plenamente acessível via internet,
+permitindo que a gestão da comunicação seja realizada de qualquer local com
+acesso à rede,
+t
+3.2.2.2 - Usabilidade: A plataforma deverá ser projetada com uma interface
+intuitiva e de fácil utilização, minimizando a curva de aprendizado e garantindo
+que as equipes da Secretaria Municipal de Administração possam operar o
+sistema com máxima eficiência desde o primeiro dia.
+3.2.2.3 - Suporte e Treinamento: A empresa contratada deverá oferecer
+treinamento abrangente e personalizado para as equipes da Secretaria de
+Administração.
+3.2.2.4 - Segurança da Informação: A solução deverá ser desenvolvida com os
+mais rigorosos padrões de segurança, garantindo a proteção e a privacidade dos
+dados dos servidores, em total conformidade com a legislação vigente,
+especialmente a Lei Geral de Proteção de Dados (LGPD).
+3.2.2.5 - Escalabilidade: O sistema deverá ter a capacidade comprovada de se
+adaptar e crescer para atender a um volume crescente de interações e a um
+número cada vez maior de servidores, sem comprometer o desempenho ou a
+estabilidade.

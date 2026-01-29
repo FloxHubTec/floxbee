@@ -75,7 +75,7 @@ import {
   useValidateWhatsApp,
   Contact
 } from "@/hooks/useContacts";
-import { exportContactsToExcel } from "@/lib/exportExcel";
+import { exportContactsToExcel, downloadContactTemplate } from "@/lib/exportExcel";
 
 const Contacts: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -270,8 +270,20 @@ const Contacts: React.FC = () => {
               <DialogContent className="sm:max-w-md w-[95vw] rounded-lg">
                 <DialogHeader>
                   <DialogTitle>Importar Contatos</DialogTitle>
-                  <DialogDescription>
-                    Arraste um arquivo CSV, Excel ou LibreOffice (.ods)
+                  <DialogDescription className="flex items-center justify-between">
+                    <span>Arraste um arquivo CSV, Excel ou LibreOffice (.ods)</span>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-primary font-semibold flex items-center gap-1"
+                      onClick={() => {
+                        downloadContactTemplate();
+                        toast.success("Planilha modelo baixada com sucesso!");
+                      }}
+                    >
+                      <Download className="w-3 h-3" />
+                      Baixar Modelo
+                    </Button>
                   </DialogDescription>
                 </DialogHeader>
                 <div
@@ -290,8 +302,12 @@ const Contacts: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      <FileSpreadsheet className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mb-2">Arraste seu arquivo aqui ou</p>
+                      <div className="flex justify-center gap-4 mb-4">
+                        <FileSpreadsheet className="w-12 h-12 text-green-600" title="Excel" />
+                        <div className="w-12 h-12 flex items-center justify-center bg-blue-600 rounded text-white font-bold text-xl" title="LibreOffice">L</div>
+                      </div>
+                      <p className="text-sm font-medium mb-1">Arraste seu arquivo (Excel, CSV ou LibreOffice)</p>
+                      <p className="text-xs text-muted-foreground mb-4">O sistema é totalmente compatível com planilhas do LibreOffice (.ods)</p>
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -299,10 +315,11 @@ const Contacts: React.FC = () => {
                         onChange={handleFileSelect}
                         className="hidden"
                       />
-                      <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                        Selecionar Arquivo
+                      <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto">
+                        <Download className="w-4 h-4 mr-2 rotate-180" />
+                        Selecionar Arquivo do Computador
                       </Button>
-                      <p className="text-xs text-muted-foreground mt-4">Formatos aceitos: .csv, .xlsx, .xls, .ods</p>
+                      <p className="text-[10px] text-muted-foreground mt-4 uppercase tracking-wider font-semibold">Formatos Garantidos: .csv, .xlsx, .xls, .ods (LibreOffice)</p>
                     </>
                   )}
                 </div>

@@ -93,6 +93,9 @@ export interface TenantConfig {
     responseTimeMinutes: number;
     resolutionTimeHours: number;
   };
+  communicationConfig?: {
+    frequencyLimitHours: number;
+  };
 }
 
 // ============================================
@@ -200,6 +203,9 @@ Regras importantes:
   slaConfig: {
     responseTimeMinutes: 15,
     resolutionTimeHours: 24
+  },
+  communicationConfig: {
+    frequencyLimitHours: 24
   }
 };
 

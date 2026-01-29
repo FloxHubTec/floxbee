@@ -197,11 +197,56 @@ export const exportLandingPageSubmissionsToExcel = (submissions: any[], landingP
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Submissões');
 
-    // Generate filename
-    const slugTitle = landingPageTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const fileName = `landing_page_${slugTitle}_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
+    return fileName;
+};
 
-    // Save file
+/**
+ * Downloads a template Excel file for contact import
+ */
+export const downloadContactTemplate = () => {
+    // Definir cabeçalhos e exemplos
+    const templateData = [
+        {
+            'nome': 'Exemplo do Servidor',
+            'whatsApp': '5511999999999',
+            'email': 'exemplo@email.com',
+            'matricula': '123456',
+            'secretaria': 'Administração',
+            'cargo': 'Analista',
+            'tags': 'servidor, ativo, prioridade'
+        },
+        {
+            'nome': 'Maria Silva',
+            'whatsApp': '5511988888888',
+            'email': 'maria@email.com',
+            'matricula': '654321',
+            'secretaria': 'Saúde',
+            'cargo': 'Enfermeira',
+            'tags': 'saude'
+        }
+    ];
+
+    // Criar planilha
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+
+    // Ajustar larguras das colunas
+    const columnWidths = [
+        { wch: 30 },  // Nome
+        { wch: 18 },  // WhatsApp
+        { wch: 30 },  // Email
+        { wch: 15 },  // Matrícula
+        { wch: 20 },  // Secretaria
+        { wch: 15 },  // Cargo
+        { wch: 30 },  // Tags
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Criar workbook
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Importar Contatos');
+
+    // Salvar arquivo
+    const fileName = 'modelo_importacao_contatos.xlsx';
     XLSX.writeFile(workbook, fileName);
 
     return fileName;

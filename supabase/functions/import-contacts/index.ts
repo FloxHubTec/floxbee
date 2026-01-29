@@ -26,13 +26,17 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { contacts, update_existing = true } = await req.json();
+    const { contacts, owner_id, update_existing = true } = await req.json();
 
     if (!contacts || !Array.isArray(contacts)) {
       throw new Error("Formato inválido. Esperado um array de contatos.");
     }
 
-    console.log(`Iniciando importação de ${contacts.length} contatos...`);
+    if (!owner_id) {
+      throw new Error("ID do proprietário (owner_id) é obrigatório.");
+    }
+
+    console.log(`Iniciando importação de ${contacts.length} contatos para o owner ${owner_id}...`);
 
     const results = {
       total: contacts.length,
@@ -42,32 +46,31 @@ serve(async (req) => {
     };
 
     // Processamento em lotes para evitar timeout ou estouro de memória
-    // O Supabase suporta upsert, o que facilita muito
     const batchSize = 100;
 
     for (let i = 0; i < contacts.length; i += batchSize) {
       const batch = contacts.slice(i, i + batchSize).map((c: ContactImport) => {
         // Limpeza básica do WhatsApp (apenas números)
-        const cleanPhone = c.whatsapp.replace(/\D/g, "");
+        const cleanPhone = String(c.whatsapp).replace(/\D/g, "");
 
         return {
-          nome: c.nome,
+          nome: c.nome || "Novo Contato",
           whatsapp: cleanPhone,
           matricula: c.matricula || null,
           secretaria: c.secretaria || null,
           email: c.email || null,
           tags: c.tags || ["importado"],
           ativo: true,
-          whatsapp_validated: false, // Será validado no primeiro envio
+          whatsapp_validated: false,
+          owner_id: owner_id
         };
       });
 
-      // Upsert: Se o whatsapp já existir, atualiza os dados se update_existing for true
-      // Caso contrário, ignora (onConflict)
+      // Upsert: Se o whatsapp + owner_id já existir, atualiza os dados se update_existing for true
       const { error } = await supabase
         .from("contacts")
         .upsert(batch, {
-          onConflict: "whatsapp",
+          onConflict: "whatsapp,owner_id",
           ignoreDuplicates: !update_existing
         });
 

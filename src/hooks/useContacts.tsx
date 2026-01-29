@@ -175,18 +175,97 @@ export const useContacts = () => {
   };
 };
 
-// --- HOOK DE IMPORTAÇÃO (Simplificado) ---
+// --- HOOK DE IMPORTAÇÃO (CORRIGIDO) ---
 export const useImportContacts = () => {
   const queryClient = useQueryClient();
   const [isImporting, setIsImporting] = useState(false);
 
   const importContacts = async (file: File) => {
     setIsImporting(true);
-    // ... (Logica de importação mantida ou simplificada se usar Edge Function de import)
-    // Para economizar espaço na resposta, foquei na correção da validação abaixo
-    setIsImporting(false);
-    return { success: true };
+    try {
+      // 1. Importar dinamicamente a lib xlsx para economizar bundle se não for usada
+      const XLSX = await import('xlsx');
+
+      // 2. Ler o arquivo
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+
+      // Pegar a primeira planilha
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+      // Converter para JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      if (jsonData.length === 0) {
+        throw new Error("O arquivo está vazio.");
+      }
+
+      console.log(`Processando ${jsonData.length} linhas do arquivo...`);
+
+      // 3. Mapear campos (Aceita cabeçalhos em português e inglês, maiúsculos/minúsculos)
+      const mappedContacts = jsonData.map(row => {
+        // Normaliza as chaves para facilitar a busca
+        const normalizedRow: any = {};
+        Object.keys(row).forEach(key => {
+          normalizedRow[key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")] = row[key];
+        });
+
+        return {
+          nome: normalizedRow.nome || normalizedRow.name || "Sem Nome",
+          whatsapp: String(normalizedRow.whatsapp || normalizedRow.telefone || normalizedRow.phone || "").replace(/\D/g, ""),
+          email: normalizedRow.email || null,
+          matricula: String(normalizedRow.matricula || normalizedRow.id || "").trim() || null,
+          secretaria: normalizedRow.secretaria || normalizedRow.departamento || normalizedRow.department || null,
+          cargo: normalizedRow.cargo || normalizedRow.role || null,
+          tags: normalizedRow.tags ? String(normalizedRow.tags).split(',').map(t => t.trim()) : ["importado"]
+        };
+      }).filter(c => c.whatsapp.length >= 8); // Filtro básico para números válidos
+
+      if (mappedContacts.length === 0) {
+        throw new Error("Nenhum contato válido encontrado (verifique se a coluna 'WhatsApp' está preenchida).");
+      }
+
+      // 3.1 Buscar owner_id para garantir multi-tenancy correto na importação
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('owner_id, id')
+        .eq('user_id', user.id)
+        .single();
+
+      const owner_id = profile?.owner_id || profile?.id;
+
+      // 4. Invocar Edge Function com owner_id
+      const { data: importResult, error: importError } = await supabase.functions.invoke(
+        "import-contacts",
+        { body: { contacts: mappedContacts, owner_id, update_existing: true } }
+      );
+
+      if (importError) throw importError;
+
+      // 5. Sucesso
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+
+      const { success, total, failed } = importResult;
+      toast.success(`Importação concluída! ${success} contatos salvos.`);
+
+      if (failed > 0) {
+        toast.warning(`${failed} contatos falharam na importação.`);
+      }
+
+      return { success: true, ...importResult };
+
+    } catch (error: any) {
+      console.error("Erro na importação:", error);
+      toast.error("Erro ao importar: " + (error.message || "Erro interno"));
+      return { success: false, error: error.message };
+    } finally {
+      setIsImporting(false);
+    }
   };
+
   return { importContacts, isImporting };
 };
 

@@ -11,7 +11,8 @@ import {
   Webhook,
   ChevronDown,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Building2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -305,6 +306,28 @@ const ApiDocs: React.FC = () => {
         },
       ],
     },
+    {
+      title: 'Gestão de Departamentos',
+      icon: Building2,
+      description: 'Endpoints para gerenciar departamentos e equipes (Novo)',
+      endpoints: [
+        {
+          method: 'GET',
+          path: '/rest/v1/departments',
+          description: 'Listar todos os departamentos vinculados ao seu owner_id',
+          headers: ['Prefer: count=exact'],
+          responseExample: [
+            {
+              id: 'uuid',
+              name: 'Suporte Técnico',
+              description: 'Atendimento de TI',
+              active: true,
+              agents_ids: ['id-agente-1', 'id-agente-2']
+            }
+          ],
+        },
+      ],
+    },
   ];
 
   return (
@@ -337,8 +360,8 @@ const ApiDocs: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              A API {config.branding?.name || 'do FloxHub'} utiliza os Edge Functions do Supabase para garantir alta performance e escalabilidade.
-              Todas as requisições devem ser autenticadas para garantir a segurança dos dados.
+              A API {config.branding?.name || 'do FloxHub'} utiliza os Edge Functions do Supabase e o PostgREST para garantir alta performance e escalabilidade.
+              Nossa arquitetura segue padrões governamentais de segurança e interoperabilidade.
             </p>
 
             <div className="p-4 bg-primary/5 border border-primary/10 rounded-lg space-y-3">
