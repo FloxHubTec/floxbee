@@ -235,10 +235,24 @@ serve(async (req) => {
           personalizedPrompt += `\n\n--- HORÁRIO DE FUNCIONAMENTO ---\nFuso Horário: ${tenantConfig.businessHours.timezone}\n${schedule}\n---------------------------------`;
         }
 
+        // --- NEW: Inject Departments from DB ---
+        let activeDeptsStr = "Não informados";
+        if (ownerId) {
+          const { data: depts } = await supabase
+            .from('departments')
+            .select('name')
+            .eq('owner_id', ownerId)
+            .eq('active', true);
+
+          if (depts && depts.length > 0) {
+            activeDeptsStr = depts.map(d => d.name).join(', ');
+          }
+        }
+
         // --- NEW: Inform AI about Business Rules/Entity ---
         personalizedPrompt += `\n\n--- REGRAS DE NEGÓCIO E AMBIENTE ---\nEste sistema é um CRM focado em ${entityConfig.entityNamePlural || "servidores"}.
 A entidade principal é chamada de "${entityConfig.entityName || "servidor"}".
-Departamentos ativos: ${entityConfig.departments?.join(', ') || "Não informados"}.
+Departamentos ativos (consulte esta lista para encaminhamentos e tickets): ${activeDeptsStr}.
 --------------------------------------`;
       }
     }

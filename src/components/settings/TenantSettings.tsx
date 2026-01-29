@@ -28,7 +28,8 @@ import {
   Image as ImageIcon,
   Loader2,
   Upload,
-  X
+  X,
+  Building2
 } from "lucide-react";
 import { CURRENT_TENANT, TenantConfig } from "@/config/tenant";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -98,7 +99,6 @@ export default function TenantSettings() {
   // Local state for all fields
   const [localConfig, setLocalConfig] = useState<TenantConfig>(config);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const [newDepartment, setNewDepartment] = useState("");
   const [newTopic, setNewTopic] = useState("");
 
   // Sync when config loads
@@ -439,16 +439,18 @@ export default function TenantSettings() {
                 })}
               </div>
 
-              <div className="space-y-2">
-                <Label>Departamentos</Label>
-                <div className="flex gap-2">
-                  <Input value={newDepartment} onChange={e => setNewDepartment(e.target.value)} placeholder="Novo depto..." onKeyDown={e => { if (e.key === 'Enter') { setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, departments: [...localConfig.entity.departments, newDepartment] } }); setNewDepartment(""); } }} />
-                  <Button onClick={() => { setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, departments: [...localConfig.entity.departments, newDepartment] } }); setNewDepartment(""); }}><Plus className="h-4 w-4" /></Button>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {localConfig.entity.departments.map(d => (
-                    <Badge key={d} variant="secondary">{d} <Trash2 className="h-3 w-3 ml-2 cursor-pointer" onClick={() => setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, departments: localConfig.entity.departments.filter(x => x !== d) } })} /></Badge>
-                  ))}
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label>Gestão de Departamentos</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Os departamentos e secretarias são geridos em uma página dedicada para maior controle.
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={() => window.location.href = '/departments'}>
+                    <Building2 className="mr-2 h-4 w-4" />
+                    Gerenciar Departamentos
+                  </Button>
                 </div>
               </div>
             </CardContent>
