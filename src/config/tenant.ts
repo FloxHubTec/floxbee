@@ -13,7 +13,7 @@ export interface TenantBranding {
   description: string;
   logoUrl?: string; // URL externa do logo (opcional)
   faviconUrl?: string;
-  
+
   // Cores (HSL format para compatibilidade com Tailwind)
   colors: {
     primary: string; // ex: "162 100% 33%"
@@ -27,14 +27,14 @@ export interface TenantEntityConfig {
   // Nomenclatura da entidade principal (servidor, cliente, usuário, etc.)
   entityName: string; // "servidor", "cliente", "usuário"
   entityNamePlural: string; // "servidores", "clientes", "usuários"
-  
+
   // Campos personalizados para o cadastro
   customFields: {
     field1?: { label: string; placeholder: string; enabled: boolean }; // Ex: matrícula
     field2?: { label: string; placeholder: string; enabled: boolean }; // Ex: secretaria
     field3?: { label: string; placeholder: string; enabled: boolean }; // Ex: cargo
   };
-  
+
   // Lista de opções para campo de departamento/setor
   departments: string[];
 }
@@ -44,15 +44,18 @@ export interface TenantAIConfig {
   aiName: string;
   aiRole: string;
   aiOrganization: string;
-  
+
   // Modelo de IA (configurável apenas por superadmin)
   model?: string;
-  
+
   // Prompt customizado
   systemPromptTemplate: string;
-  
+
   // Tópicos que a IA pode ajudar
   helpTopics: string[];
+
+  // Base de conhecimento (texto livre para contexto extra)
+  knowledgeBase?: string;
 }
 
 export interface TenantFeatures {
@@ -71,6 +74,19 @@ export interface TenantConfig {
   entity: TenantEntityConfig;
   ai: TenantAIConfig;
   features: TenantFeatures;
+  businessHours?: {
+    timezone: string;
+    schedule: {
+      day: string;
+      open: string;
+      close: string;
+      closed: boolean;
+    }[];
+  };
+  slaConfig?: {
+    responseTimeMinutes: number;
+    resolutionTimeHours: number;
+  };
 }
 
 // ============================================
@@ -80,7 +96,7 @@ export interface TenantConfig {
 
 export const CURRENT_TENANT: TenantConfig = {
   id: "prefeitura-municipal",
-  
+
   branding: {
     name: "FloxBee",
     shortName: "FloxBee",
@@ -146,6 +162,7 @@ Regras importantes:
       "Benefícios e auxílios",
       "Prazos e procedimentos administrativos",
     ],
+    knowledgeBase: "",
   },
 
   features: {
@@ -156,6 +173,24 @@ Regras importantes:
     enablePublicRegister: true,
     enableAPIAccess: true,
   },
+
+  businessHours: {
+    timezone: "America/Sao_Paulo",
+    schedule: [
+      { day: "Segunda-feira", open: "08:00", close: "18:00", closed: false },
+      { day: "Terça-feira", open: "08:00", close: "18:00", closed: false },
+      { day: "Quarta-feira", open: "08:00", close: "18:00", closed: false },
+      { day: "Quinta-feira", open: "08:00", close: "18:00", closed: false },
+      { day: "Sexta-feira", open: "08:00", close: "18:00", closed: false },
+      { day: "Sábado", open: "08:00", close: "12:00", closed: true },
+      { day: "Domingo", open: "08:00", close: "12:00", closed: true },
+    ]
+  },
+
+  slaConfig: {
+    responseTimeMinutes: 15,
+    resolutionTimeHours: 24
+  }
 };
 
 // ============================================
@@ -265,14 +300,14 @@ export const TENANT_EXAMPLES: Record<string, Partial<TenantConfig>> = {
  */
 export function processTemplate(template: string, variables: Record<string, string | string[]>): string {
   let result = template;
-  
+
   // Substituir variáveis simples {{key}}
   Object.entries(variables).forEach(([key, value]) => {
     if (typeof value === 'string') {
       result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
     }
   });
-  
+
   // Processar arrays {{#key}}...{{/key}}
   Object.entries(variables).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -282,7 +317,7 @@ export function processTemplate(template: string, variables: Record<string, stri
       });
     }
   });
-  
+
   return result;
 }
 
@@ -311,9 +346,9 @@ export function getSampleVariables(config: TenantConfig): Record<string, string>
     data: new Date().toLocaleDateString('pt-BR'),
     hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
   };
-  
+
   const { customFields } = config.entity;
-  
+
   if (customFields.field1?.enabled) {
     const key = customFields.field1.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     samples[key] = '12345';
@@ -326,6 +361,6 @@ export function getSampleVariables(config: TenantConfig): Record<string, string>
     const key = customFields.field3.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     samples[key] = 'Analista';
   }
-  
+
   return samples;
 }

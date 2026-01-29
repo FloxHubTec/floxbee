@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
@@ -21,11 +22,18 @@ import {
   RotateCcw,
   ShieldAlert,
   Lock,
-  Zap
+  Zap,
+  Clock,
+  Calendar,
+  Image as ImageIcon,
+  Loader2,
+  Upload,
+  X
 } from "lucide-react";
 import { CURRENT_TENANT, TenantConfig } from "@/config/tenant";
+import { useFileUpload } from "@/hooks/useFileUpload";
 
-// Funções utilitárias para conversão de cores
+// Color utility functions
 function hexToHsl(hex: string): string {
   let r = 0, g = 0, b = 0;
   if (hex.length === 4) {
@@ -85,703 +93,477 @@ function rgbToHex(rgb: [number, number, number]): string {
 
 export default function TenantSettings() {
   const { config, updateConfig } = useTenant();
-  const { isAdmin, isSuperadmin } = useAuth();
-  const [departments, setDepartments] = useState<string[]>(config.entity.departments);
-  const [newDepartment, setNewDepartment] = useState("");
-  const [helpTopics, setHelpTopics] = useState<string[]>(config.ai.helpTopics);
-  const [newTopic, setNewTopic] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
+  const { profile, isAdmin, isSuperadmin } = useAuth();
 
-  // Apenas admins ou superadmins podem acessar
+  // Local state for all fields
+  const [localConfig, setLocalConfig] = useState<TenantConfig>(config);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [newDepartment, setNewDepartment] = useState("");
+  const [newTopic, setNewTopic] = useState("");
+
+  // Sync when config loads
+  useEffect(() => {
+    setLocalConfig(config);
+  }, [config]);
+
   if (!isAdmin && !isSuperadmin) {
     return (
       <Alert className="border-destructive/50 bg-destructive/10">
         <ShieldAlert className="h-4 w-4 text-destructive" />
         <AlertDescription className="text-destructive">
-          Apenas usuários administradores podem acessar as configurações do sistema.
+          Acesso restrito a administradores.
         </AlertDescription>
       </Alert>
     );
   }
 
-  const handleSaveEntity = () => {
-    updateConfig({
-      entity: {
-        ...config.entity,
-        departments
-      }
-    });
-    toast.success("Configurações de entidade salvas!");
-  };
-
-  const handleSaveAI = () => {
-    updateConfig({
-      ai: {
-        ...config.ai,
-        helpTopics
-      }
-    });
-    toast.success("Configurações de IA salvas!");
-  };
-
-  const handleSaveFeatures = (updates: Partial<TenantConfig['features']>) => {
-    updateConfig({ features: { ...config.features, ...updates } });
-    toast.success("Módulos atualizados!");
-  };
-
-  const handleReset = () => {
-    updateConfig(CURRENT_TENANT);
-    setDepartments(CURRENT_TENANT.entity.departments);
-    setHelpTopics(CURRENT_TENANT.ai.helpTopics);
-    toast.success("Configurações restauradas!");
-  };
-
-  const addDepartment = () => {
-    if (newDepartment.trim() && !departments.includes(newDepartment.trim())) {
-      setDepartments([...departments, newDepartment.trim()]);
-      setNewDepartment("");
+  const handleSave = async () => {
+    try {
+      await updateConfig(localConfig);
+      toast.success("Configurações salvas com sucesso!");
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      toast.error("Erro ao salvar configurações.");
     }
   };
 
-  const removeDepartment = (dept: string) => {
-    setDepartments(departments.filter(d => d !== dept));
-  };
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const addTopic = () => {
-    if (newTopic.trim() && !helpTopics.includes(newTopic.trim())) {
-      setHelpTopics([...helpTopics, newTopic.trim()]);
-      setNewTopic("");
+    setIsUploadingLogo(true);
+    try {
+      const ownerId = profile?.owner_id || profile?.id || "default";
+      const timestamp = Date.now();
+      const extension = file.name.split(".").pop();
+      const fileName = `logo-${timestamp}.${extension}`;
+      const filePath = `logos/${ownerId}/${fileName}`;
+
+      console.log("Iniciando upload de logotipo:", filePath);
+
+      const { error: uploadError } = await supabase.storage
+        .from('branding')
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('branding')
+        .getPublicUrl(filePath);
+
+      const oldUrl = localConfig.branding.logoUrl;
+      const newConfig = {
+        ...localConfig,
+        branding: {
+          ...localConfig.branding,
+          logoUrl: urlData.publicUrl
+        }
+      };
+
+      // Atualiza estado local e persiste no banco imediatamente
+      setLocalConfig(newConfig);
+      await updateConfig(newConfig);
+
+      // Limpa logo antiga após sucesso no banco
+      if (oldUrl) {
+        await deleteOldLogo(oldUrl);
+      }
+
+      toast.success("Logo atualizada com sucesso!");
+    } catch (error: any) {
+      console.error("Erro no processo de logo:", error);
+      toast.error(`Erro ao processar logotipo: ${error.message || "Erro desconhecido"}`);
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
-  const removeTopic = (topic: string) => {
-    setHelpTopics(helpTopics.filter(t => t !== topic));
+  const deleteOldLogo = async (url: string) => {
+    if (!url || !url.startsWith('http')) return;
+
+    try {
+      // Extração robusta do path usando URL API
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/public/branding/');
+
+      if (pathParts.length >= 2) {
+        const filePath = decodeURIComponent(pathParts[1]);
+        console.log("Limpando arquivo físico no storage:", filePath);
+
+        const { error } = await supabase.storage
+          .from('branding')
+          .remove([filePath]);
+
+        if (error) {
+          console.error("Erro na exclusão física (Storage):", error);
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao processar URL para exclusão:", e);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!localConfig.branding.logoUrl) return;
+
+    const oldUrl = localConfig.branding.logoUrl;
+    const newConfig = {
+      ...localConfig,
+      branding: {
+        ...localConfig.branding,
+        logoUrl: undefined
+      }
+    };
+
+    try {
+      setLocalConfig(newConfig);
+      await updateConfig(newConfig);
+      await deleteOldLogo(oldUrl);
+      toast.success("Logo removida com sucesso!");
+    } catch (error) {
+      console.error("Erro ao remover logo:", error);
+      toast.error("Erro ao processar remoção");
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Configuração do Sistema</h2>
-          <p className="text-muted-foreground">
-            Personalize entidades, IA e módulos do sistema
-          </p>
+          <h2 className="text-2xl font-bold">Configuração do Sistema</h2>
+          <p className="text-muted-foreground">Gerencie sua unidade e comportamento da IA</p>
         </div>
-        <Button variant="outline" onClick={handleReset}>
-          <RotateCcw className="h-4 w-4 mr-2" />
-          Restaurar Padrões
-        </Button>
       </div>
 
-      <Tabs defaultValue="entity" className="space-y-4">
+      <Tabs defaultValue="ai" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="branding" className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            <span className="hidden sm:inline">Branding</span>
-          </TabsTrigger>
-          <TabsTrigger value="entity" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Entidade</span>
-          </TabsTrigger>
-          <TabsTrigger value="ai" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            <span className="hidden sm:inline">IA</span>
-          </TabsTrigger>
-          <TabsTrigger value="features" className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Módulos</span>
-          </TabsTrigger>
+          <TabsTrigger value="branding" className="flex items-center gap-2"><Zap className="h-4 w-4" /> Branding</TabsTrigger>
+          <TabsTrigger value="entity" className="flex items-center gap-2"><Users className="h-4 w-4" /> Entidade</TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2"><Bot className="h-4 w-4" /> IA</TabsTrigger>
+          <TabsTrigger value="features" className="flex items-center gap-2"><Settings2 className="h-4 w-4" /> Módulos & SLA</TabsTrigger>
         </TabsList>
 
-        {/* Branding Configuration */}
         <TabsContent value="branding">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Identidade Visual
-              </CardTitle>
-              <CardDescription>
-                Personalize o nome, cores e logotipo do seu ambiente
-              </CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle>Branding</CardTitle></CardHeader>
             <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Label>Identidade Visual (Logo)</Label>
+                <div className="flex items-start gap-6 p-4 border rounded-lg bg-muted/20">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-24 w-24 rounded-lg border bg-background flex items-center justify-center overflow-hidden">
+                      {localConfig.branding.logoUrl ? (
+                        <img
+                          src={localConfig.branding.logoUrl}
+                          alt="Logo preview"
+                          className="h-full w-full object-contain p-2"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-muted-foreground p-2 text-center">
+                          <ImageIcon className="h-8 w-8 opacity-20" />
+                          <span className="text-[10px]">Sem Logo</span>
+                        </div>
+                      )}
+                    </div>
+                    {localConfig.branding.logoUrl && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive h-7 px-2 hover:bg-destructive/10"
+                        onClick={handleRemoveLogo}
+                      >
+                        <X className="h-3 w-3 mr-1" /> Remover
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Logotipo da Unidade</p>
+                      <p className="text-xs text-muted-foreground">
+                        Recomendado: SVG ou PNG transparente (512x512px).
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                        disabled={isUploadingLogo}
+                      />
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        disabled={isUploadingLogo}
+                        className="cursor-pointer"
+                      >
+                        <label htmlFor="logo-upload">
+                          {isUploadingLogo ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4 mr-2" />
+                          )}
+                          {isUploadingLogo ? "Enviando..." : "Escolher Arquivo"}
+                        </label>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Nome do Sistema</Label>
-                  <Input
-                    value={config.branding.name}
-                    onChange={(e) => updateConfig({
-                      branding: { ...config.branding, name: e.target.value }
-                    })}
-                    placeholder="Ex: FloxBee, Minha Empresa"
-                  />
+                  <Label>Nome</Label>
+                  <Input value={localConfig.branding.name} onChange={e => setLocalConfig({ ...localConfig, branding: { ...localConfig.branding, name: e.target.value } })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Nome Curto</Label>
-                  <Input
-                    value={config.branding.shortName}
-                    onChange={(e) => updateConfig({
-                      branding: { ...config.branding, shortName: e.target.value }
-                    })}
-                    placeholder="Ex: Flox"
-                  />
+                  <Input value={localConfig.branding.shortName} onChange={e => setLocalConfig({ ...localConfig, branding: { ...localConfig.branding, shortName: e.target.value } })} />
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label>Tagline (Slogan)</Label>
-                <Input
-                  value={config.branding.tagline}
-                  onChange={(e) => updateConfig({
-                    branding: { ...config.branding, tagline: e.target.value }
-                  })}
-                  placeholder="Ex: Sistema de Gestão Inteligente"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label>Cor Primária (Tema)</Label>
-                  <div className="flex items-center gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Cor Primária</Label>
+                  <div className="flex items-center gap-2 p-2 border rounded-md">
                     <input
                       type="color"
-                      className="h-10 w-20 cursor-pointer rounded border p-1"
-                      value={rgbToHex(hslToRgb(config.branding.colors.primary))}
-                      onChange={(e) => {
-                        const hsl = hexToHsl(e.target.value);
-                        updateConfig({
-                          branding: {
-                            ...config.branding,
-                            colors: { ...config.branding.colors, primary: hsl }
-                          }
-                        });
-                      }}
+                      className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                      value={rgbToHex(hslToRgb(localConfig.branding.colors.primary))}
+                      onChange={e => setLocalConfig({
+                        ...localConfig,
+                        branding: {
+                          ...localConfig.branding,
+                          colors: { ...localConfig.branding.colors, primary: hexToHsl(e.target.value) }
+                        }
+                      })}
                     />
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {config.branding.colors.primary}
-                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground truncate">{localConfig.branding.colors.primary}</span>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <Label>Cor de Destaque (Accent)</Label>
-                  <div className="flex items-center gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Texto s/ Primária</Label>
+                  <div className="flex items-center gap-2 p-2 border rounded-md">
                     <input
                       type="color"
-                      className="h-10 w-20 cursor-pointer rounded border p-1"
-                      value={rgbToHex(hslToRgb(config.branding.colors.accent))}
-                      onChange={(e) => {
-                        const hsl = hexToHsl(e.target.value);
-                        updateConfig({
-                          branding: {
-                            ...config.branding,
-                            colors: { ...config.branding.colors, accent: hsl }
-                          }
-                        });
-                      }}
+                      className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                      value={rgbToHex(hslToRgb(localConfig.branding.colors.primaryForeground))}
+                      onChange={e => setLocalConfig({
+                        ...localConfig,
+                        branding: {
+                          ...localConfig.branding,
+                          colors: { ...localConfig.branding.colors, primaryForeground: hexToHsl(e.target.value) }
+                        }
+                      })}
                     />
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {config.branding.colors.accent}
-                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground truncate">{localConfig.branding.colors.primaryForeground}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Cor Secundária</Label>
+                  <div className="flex items-center gap-2 p-2 border rounded-md">
+                    <input
+                      type="color"
+                      className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                      value={rgbToHex(hslToRgb(localConfig.branding.colors.accent))}
+                      onChange={e => setLocalConfig({
+                        ...localConfig,
+                        branding: {
+                          ...localConfig.branding,
+                          colors: { ...localConfig.branding.colors, accent: hexToHsl(e.target.value) }
+                        }
+                      })}
+                    />
+                    <span className="text-[10px] font-mono text-muted-foreground truncate">{localConfig.branding.colors.accent}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase text-muted-foreground">Texto s/ Secundária</Label>
+                  <div className="flex items-center gap-2 p-2 border rounded-md">
+                    <input
+                      type="color"
+                      className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                      value={rgbToHex(hslToRgb(localConfig.branding.colors.accentForeground))}
+                      onChange={e => setLocalConfig({
+                        ...localConfig,
+                        branding: {
+                          ...localConfig.branding,
+                          colors: { ...localConfig.branding.colors, accentForeground: hexToHsl(e.target.value) }
+                        }
+                      })}
+                    />
+                    <span className="text-[10px] font-mono text-muted-foreground truncate">{localConfig.branding.colors.accentForeground}</span>
                   </div>
                 </div>
               </div>
-
-              <div className="space-y-3">
-                <Label>Logotipo da Unidade</Label>
-                <div className="flex items-start gap-4 p-4 border rounded-lg bg-muted/30">
-                  <div className="h-24 w-24 border rounded flex items-center justify-center bg-background overflow-hidden relative">
-                    {isUploading ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-                        <RotateCcw className="h-6 w-6 animate-spin text-primary" />
-                      </div>
-                    ) : null}
-                    {config.branding.logoUrl ? (
-                      <img src={config.branding.logoUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
-                    ) : (
-                      <Zap className="h-8 w-8 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <p className="text-sm font-medium">Alterar logotipo</p>
-                    <p className="text-xs text-muted-foreground">Upload de imagem PNG ou JPG (recomendado 512x512px)</p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => document.getElementById('logo-upload')?.click()}
-                        disabled={isUploading}
-                      >
-                        {isUploading ? "Enviando..." : "Selecionar Arquivo"}
-                      </Button>
-                      <input
-                        id="logo-upload"
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        disabled={isUploading}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            try {
-                              setIsUploading(true);
-                              const fileExt = file.name.split('.').pop();
-                              const fileName = `logo-${Date.now()}.${fileExt}`;
-
-                              const { data, error } = await supabase.storage
-                                .from('branding')
-                                .upload(fileName, file);
-
-                              if (error) throw error;
-
-                              const { data: { publicUrl } } = supabase.storage
-                                .from('branding')
-                                .getPublicUrl(fileName);
-
-                              await updateConfig({
-                                branding: { ...config.branding, logoUrl: publicUrl }
-                              });
-                              toast.success("Logo atualizado!");
-                            } catch (err: any) {
-                              console.error(err);
-                              toast.error(`Erro ao fazer upload: ${err.message || 'Erro desconhecido'}`);
-                            } finally {
-                              setIsUploading(false);
-                            }
-                          }
-                        }}
-                      />
-                      {config.branding.logoUrl && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive"
-                          onClick={() => updateConfig({
-                            branding: { ...config.branding, logoUrl: undefined }
-                          })}
-                        >
-                          Remover
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <Button onClick={() => toast.success("Configurações salvas automaticamente!")} className="w-full">
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Branding
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Entity Configuration */}
         <TabsContent value="entity">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Configuração de Entidade
-              </CardTitle>
-              <CardDescription>
-                Defina como chamar seus contatos e quais campos usar
-              </CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle>Entidade Principal</CardTitle></CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Nome da Entidade (singular)</Label>
-                  <Input
-                    value={config.entity.entityName}
-                    onChange={(e) => updateConfig({
-                      entity: { ...config.entity, entityName: e.target.value }
-                    })}
-                    placeholder="Ex: servidor, cliente, paciente"
-                  />
+                  <Label>Nome (Singular)</Label>
+                  <Input value={localConfig.entity.entityName} onChange={e => setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, entityName: e.target.value } })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Nome da Entidade (plural)</Label>
-                  <Input
-                    value={config.entity.entityNamePlural}
-                    onChange={(e) => updateConfig({
-                      entity: { ...config.entity, entityNamePlural: e.target.value }
-                    })}
-                    placeholder="Ex: servidores, clientes, pacientes"
-                  />
+                  <Label>Nome (Plural)</Label>
+                  <Input value={localConfig.entity.entityNamePlural} onChange={e => setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, entityNamePlural: e.target.value } })} />
                 </div>
+              </div>
+
+              <div className="space-y-4">
+                <Label>Campos Customizados</Label>
+                {[1, 2, 3].map(num => {
+                  const key = `field${num}` as keyof typeof localConfig.entity.customFields;
+                  const field = localConfig.entity.customFields[key];
+                  return (
+                    <div key={key} className="flex items-center gap-4 p-3 border rounded-lg bg-muted/20">
+                      <Checkbox checked={field?.enabled} onCheckedChange={v => setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, customFields: { ...localConfig.entity.customFields, [key]: { ...field, enabled: v === true } } } })} />
+                      <Input placeholder="Label" className="flex-1" value={field?.label || ""} onChange={e => setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, customFields: { ...localConfig.entity.customFields, [key]: { ...field, label: e.target.value } } } })} />
+                      <Input placeholder="Dica" className="flex-1" value={field?.placeholder || ""} onChange={e => setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, customFields: { ...localConfig.entity.customFields, [key]: { ...field, placeholder: e.target.value } } } })} />
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="space-y-2">
-                <Label>Departamentos/Setores</Label>
+                <Label>Departamentos</Label>
                 <div className="flex gap-2">
-                  <Input
-                    value={newDepartment}
-                    onChange={(e) => setNewDepartment(e.target.value)}
-                    placeholder="Adicionar departamento..."
-                    onKeyPress={(e) => e.key === 'Enter' && addDepartment()}
-                  />
-                  <Button onClick={addDepartment} size="icon">
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  <Input value={newDepartment} onChange={e => setNewDepartment(e.target.value)} placeholder="Novo depto..." onKeyDown={e => { if (e.key === 'Enter') { setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, departments: [...localConfig.entity.departments, newDepartment] } }); setNewDepartment(""); } }} />
+                  <Button onClick={() => { setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, departments: [...localConfig.entity.departments, newDepartment] } }); setNewDepartment(""); }}><Plus className="h-4 w-4" /></Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {departments.map((dept) => (
-                    <Badge
-                      key={dept}
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      {dept}
-                      <button
-                        onClick={() => removeDepartment(dept)}
-                        className="ml-1 hover:text-destructive"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </Badge>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {localConfig.entity.departments.map(d => (
+                    <Badge key={d} variant="secondary">{d} <Trash2 className="h-3 w-3 ml-2 cursor-pointer" onClick={() => setLocalConfig({ ...localConfig, entity: { ...localConfig.entity, departments: localConfig.entity.departments.filter(x => x !== d) } })} /></Badge>
                   ))}
                 </div>
               </div>
-
-              <div className="space-y-4 border-t pt-4">
-                <Label className="text-base font-semibold">Campos Personalizados (Perfil do Contato)</Label>
-                <div className="grid gap-6">
-                  {[1, 2, 3].map((num) => {
-                    const fieldKey = `field${num}` as keyof typeof config.entity.customFields;
-                    const field = config.entity.customFields[fieldKey];
-                    return (
-                      <div key={fieldKey} className="flex gap-4 items-end p-3 border rounded-lg bg-muted/20">
-                        <div className="flex-1 space-y-2">
-                          <Label>Campo {num} - Etiqueta (Label)</Label>
-                          <Input
-                            value={field?.label || ""}
-                            onChange={(e) => updateConfig({
-                              entity: {
-                                ...config.entity,
-                                customFields: {
-                                  ...config.entity.customFields,
-                                  [fieldKey]: { ...(field || {}), label: e.target.value }
-                                }
-                              }
-                            })}
-                            placeholder="Ex: Matrícula, CPF, Convênio"
-                          />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <Label>Dica (Placeholder)</Label>
-                          <Input
-                            value={field?.placeholder || ""}
-                            onChange={(e) => updateConfig({
-                              entity: {
-                                ...config.entity,
-                                customFields: {
-                                  ...config.entity.customFields,
-                                  [fieldKey]: { ...(field || {}), placeholder: e.target.value }
-                                }
-                              }
-                            })}
-                            placeholder="Ex: Digite o CPF..."
-                          />
-                        </div>
-                        <div className="flex flex-col items-center gap-2 mb-2">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-semibold">Ativo</Label>
-                          <Switch
-                            checked={field?.enabled || false}
-                            onCheckedChange={(checked) => updateConfig({
-                              entity: {
-                                ...config.entity,
-                                customFields: {
-                                  ...config.entity.customFields,
-                                  [fieldKey]: { ...(field || {}), enabled: checked }
-                                }
-                              }
-                            })}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <Button onClick={handleSaveEntity} className="w-full">
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Configurações de Entidade
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* AI Configuration */}
         <TabsContent value="ai">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bot className="h-5 w-5" />
-                Configuração da IA
-              </CardTitle>
-              <CardDescription>
-                Personalize a identidade e comportamento do assistente virtual
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Modelo de IA - Restrito ao Superadmin */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  Modelo de IA
-                  {!isSuperadmin && <Lock className="h-3 w-3 text-muted-foreground" />}
-                </Label>
-                {isSuperadmin ? (
-                  <select
-                    className="w-full p-3 border rounded-lg bg-background"
-                    value={config.ai.model || 'gpt-4o-mini'}
-                    onChange={(e) => updateConfig({
-                      ai: { ...config.ai, model: e.target.value }
-                    })}
-                  >
-                    <option value="gpt-4o-mini">GPT-4o Mini (Rápido)</option>
-                    <option value="gpt-4o">GPT-4o (Avançado)</option>
-                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 border rounded-lg">
-                    <div className="p-2 rounded-md bg-primary/10">
-                      <Zap className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">GPT-4o Mini (Rápido)</p>
-                      <p className="text-xs text-muted-foreground">
-                        Modelo otimizado para velocidade. Contate o suporte para alterar.
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      <Lock className="h-3 w-3 mr-1" />
-                      Fixo
-                    </Badge>
-                  </div>
-                )}
-              </div>
-
+            <CardHeader><CardTitle>Comportamento da IA</CardTitle></CardHeader>
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Nome da IA</Label>
-                  <Input
-                    value={config.ai.aiName}
-                    onChange={(e) => updateConfig({
-                      ai: { ...config.ai, aiName: e.target.value }
-                    })}
-                    placeholder="Ex: FloxBee"
-                  />
+                  <Input value={localConfig.ai.aiName} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, aiName: e.target.value } })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Função da IA</Label>
-                  <Input
-                    value={config.ai.aiRole}
-                    onChange={(e) => updateConfig({
-                      ai: { ...config.ai, aiRole: e.target.value }
-                    })}
-                    placeholder="Ex: assistente virtual"
-                  />
+                  <Label>Função</Label>
+                  <Input value={localConfig.ai.aiRole} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, aiRole: e.target.value } })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Organização</Label>
-                  <Input
-                    value={config.ai.aiOrganization}
-                    onChange={(e) => updateConfig({
-                      ai: { ...config.ai, aiOrganization: e.target.value }
-                    })}
-                    placeholder="Ex: Empresa XYZ"
-                  />
+                  <Input value={localConfig.ai.aiOrganization} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, aiOrganization: e.target.value } })} />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Tópicos de Ajuda</Label>
                 <div className="flex gap-2">
-                  <Input
-                    value={newTopic}
-                    onChange={(e) => setNewTopic(e.target.value)}
-                    placeholder="Adicionar tópico de ajuda..."
-                    onKeyPress={(e) => e.key === 'Enter' && addTopic()}
-                  />
-                  <Button onClick={addTopic} size="icon">
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  <Input value={newTopic} onChange={e => setNewTopic(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, helpTopics: [...localConfig.ai.helpTopics, newTopic] } }); setNewTopic(""); } }} />
+                  <Button onClick={() => { setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, helpTopics: [...localConfig.ai.helpTopics, newTopic] } }); setNewTopic(""); }}><Plus className="h-4 w-4" /></Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {helpTopics.map((topic) => (
-                    <Badge
-                      key={topic}
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      {topic}
-                      <button
-                        onClick={() => removeTopic(topic)}
-                        className="ml-1 hover:text-destructive"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </Badge>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {localConfig.ai.helpTopics.map(t => (
+                    <Badge key={t} variant="outline">{t} <Trash2 className="h-3 w-3 ml-2 cursor-pointer" onClick={() => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, helpTopics: localConfig.ai.helpTopics.filter(x => x !== t) } })} /></Badge>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Tópicos que a IA pode ajudar os usuários
-                </p>
               </div>
 
               <div className="space-y-2">
-                <Label>Prompt de Sistema (Instruções para a IA)</Label>
-                <textarea
-                  className="w-full min-h-[200px] p-3 border rounded-lg bg-background font-mono text-sm resize-y"
-                  value={config.ai.systemPromptTemplate}
-                  onChange={(e) => updateConfig({
-                    ai: { ...config.ai, systemPromptTemplate: e.target.value }
-                  })}
-                  placeholder="Digite as instruções para a IA..."
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use variáveis: {'{'}{'{'} aiName {'}'}{'}'},  {'{'}{'{'} aiRole {'}'}{'}'},  {'{'}{'{'} aiOrganization {'}'}{'}'},  {'{'}{'{'} entityName {'}'}{'}'},  {'{'}{'{'} entityNamePlural {'}'}{'}'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Para listas use: {'{'}{'{'} #helpTopics {'}'}{'}'}...{'{'}{'{'} /helpTopics {'}'}{'}'}
-                </p>
+                <Label>Prompt de Sistema</Label>
+                <textarea className="w-full min-h-[150px] p-3 border rounded-lg bg-background font-mono text-sm" value={localConfig.ai.systemPromptTemplate} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, systemPromptTemplate: e.target.value } })} />
               </div>
 
-              <div className="space-y-2 p-4 bg-muted/50 rounded-lg border">
-                <Label className="text-sm font-semibold">Preview do Prompt</Label>
-                <div className="text-xs whitespace-pre-wrap font-mono bg-background p-3 rounded border max-h-[300px] overflow-y-auto">
-                  {(() => {
-                    // Generate preview with substituted variables
-                    try {
-                      const processedPrompt = config.ai.systemPromptTemplate
-                        .replace(/\{\{aiName\}\}/g, config.ai.aiName || 'IA')
-                        .replace(/\{\{aiRole\}\}/g, config.ai.aiRole || 'assistente')
-                        .replace(/\{\{aiOrganization\}\}/g, config.ai.aiOrganization || 'Organização')
-                        .replace(/\{\{entityName\}\}/g, config.entity.entityName || 'usuário')
-                        .replace(/\{\{entityNamePlural\}\}/g, config.entity.entityNamePlural || 'usuários');
-
-                      // Process help topics loop
-                      const topicsRegex = /\{\{#helpTopics\}\}([\s\S]*?)\{\{\/helpTopics\}\}/g;
-                      const processedWithTopics = processedPrompt.replace(topicsRegex, (_, template) => {
-                        return helpTopics.map(topic => template.replace(/\{\{\.\}\}/g, topic)).join('\n');
-                      });
-
-                      return processedWithTopics || "Digite um prompt acima para ver o preview...";
-                    } catch (e) {
-                      return "Erro ao gerar preview. Verifique a sintaxe do template.";
-                    }
-                  })()}
-                </div>
+              <div className="space-y-2">
+                <Label>Base de Conhecimento</Label>
+                <textarea className="w-full min-h-[150px] p-3 border rounded-lg bg-background text-sm" value={localConfig.ai.knowledgeBase || ""} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, knowledgeBase: e.target.value } })} placeholder="Regras de negócio, detalhes da organização..." />
               </div>
-
-              <Button onClick={handleSaveAI} className="w-full">
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Configurações da IA
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Features */}
         <TabsContent value="features">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings2 className="h-5 w-5" />
-                Módulos do Sistema
-              </CardTitle>
-              <CardDescription>
-                Ative ou desative funcionalidades conforme necessário
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                {/* Lista de Features - Mantida a mesma lógica */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Tickets de Atendimento</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Sistema de gestão de chamados e demandas
-                    </p>
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader><CardTitle>SLA e Horários</CardTitle></CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Clock className="h-4 w-4" /> Resposta (Minutos)</Label>
+                    <Input type="number" value={localConfig.slaConfig?.responseTimeMinutes} onChange={e => setLocalConfig({ ...localConfig, slaConfig: { ...localConfig.slaConfig!, responseTimeMinutes: parseInt(e.target.value) || 0 } })} />
                   </div>
-                  <Switch
-                    checked={config.features.enableTickets}
-                    onCheckedChange={(checked) => handleSaveFeatures({ enableTickets: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Campanhas de Mensagens</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Envio de mensagens em massa e gestão de listas
-                    </p>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Clock className="h-4 w-4" /> Resolução (Horas)</Label>
+                    <Input type="number" value={localConfig.slaConfig?.resolutionTimeHours} onChange={e => setLocalConfig({ ...localConfig, slaConfig: { ...localConfig.slaConfig!, resolutionTimeHours: parseInt(e.target.value) || 0 } })} />
                   </div>
-                  <Switch
-                    checked={config.features.enableCampaigns}
-                    onCheckedChange={(checked) => handleSaveFeatures({ enableCampaigns: checked })}
-                  />
                 </div>
 
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Automações de Chat</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Regras de resposta automática e gatilhos temporais
-                    </p>
+                <div className="space-y-4">
+                  <Label className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Horário de Funcionamento</Label>
+                  <div className="space-y-2">
+                    {localConfig.businessHours?.schedule.map((item, idx) => (
+                      <div key={item.day} className="flex items-center gap-4 p-2 border rounded bg-muted/10">
+                        <div className="w-24 font-medium">{item.day}</div>
+                        <Input type="time" value={item.open} disabled={item.closed} onChange={e => {
+                          const sched = [...localConfig.businessHours!.schedule];
+                          sched[idx] = { ...item, open: e.target.value };
+                          setLocalConfig({ ...localConfig, businessHours: { ...localConfig.businessHours!, schedule: sched } });
+                        }} />
+                        <span>-</span>
+                        <Input type="time" value={item.close} disabled={item.closed} onChange={e => {
+                          const sched = [...localConfig.businessHours!.schedule];
+                          sched[idx] = { ...item, close: e.target.value };
+                          setLocalConfig({ ...localConfig, businessHours: { ...localConfig.businessHours!, schedule: sched } });
+                        }} />
+                        <Switch checked={!item.closed} onCheckedChange={checked => {
+                          const sched = [...localConfig.businessHours!.schedule];
+                          sched[idx] = { ...item, closed: !checked };
+                          setLocalConfig({ ...localConfig, businessHours: { ...localConfig.businessHours!, schedule: sched } });
+                        }} />
+                      </div>
+                    ))}
                   </div>
-                  <Switch
-                    checked={config.features.enableAutomations}
-                    onCheckedChange={(checked) => handleSaveFeatures({ enableAutomations: checked })}
-                  />
                 </div>
+              </CardContent>
+            </Card>
 
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Inteligência Artificial (IA)</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Assistente virtual para triagem e respostas automáticas
-                    </p>
+            <Card>
+              <CardHeader><CardTitle>Módulos do Sistema</CardTitle></CardHeader>
+              <CardContent className="grid grid-cols-2 gap-4">
+                {Object.entries(localConfig.features).map(([key, val]) => (
+                  <div key={key} className="flex items-center justify-between p-4 border rounded-lg">
+                    <Label className="capitalize">{key.replace('enable', '').replace(/([A-Z])/g, ' $1')}</Label>
+                    <Switch checked={val} onCheckedChange={checked => setLocalConfig({ ...localConfig, features: { ...localConfig.features, [key]: checked } })} />
                   </div>
-                  <Switch
-                    checked={config.features.enableAI}
-                    onCheckedChange={(checked) => handleSaveFeatures({ enableAI: checked })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Cadastro Público (Landing Pages)</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Páginas externas para captura de novos contatos
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.features.enablePublicRegister}
-                    onCheckedChange={(checked) => handleSaveFeatures({ enablePublicRegister: checked })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Acesso via API</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Integrações externas através de chaves de API
-                    </p>
-                  </div>
-                  <Switch
-                    checked={config.features.enableAPIAccess}
-                    onCheckedChange={(checked) => handleSaveFeatures({ enableAPIAccess: checked })}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
+
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t flex justify-end gap-2 z-50">
+        <Button variant="outline" onClick={() => setLocalConfig(config)}>Descartar Alterações</Button>
+        <Button onClick={handleSave} size="lg"><Save className="h-4 w-4 mr-2" /> Salvar Configurações</Button>
+      </div>
     </div>
   );
 }

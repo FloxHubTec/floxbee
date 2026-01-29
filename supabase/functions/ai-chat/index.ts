@@ -127,6 +127,14 @@ serve(async (req) => {
     const body: ChatRequest = await req.json();
     const { messages, context, stream = false } = body;
 
+    // Quick ping check
+    if ((body as any).ping) {
+      return new Response(
+        JSON.stringify({ status: "ok", message: "pong" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Verify if bot is active for this conversation
     if (context?.conversation_id) {
       const { data: conv, error: convError } = await supabase
@@ -209,7 +217,40 @@ serve(async (req) => {
         Object.entries(replacements).forEach(([key, value]) => {
           personalizedPrompt = personalizedPrompt.replaceAll(key, value);
         });
+
+        // --- NEW: Inject Knowledge Base ---
+        if (tenantConfig.ai.knowledgeBase) {
+          personalizedPrompt += `\n\n--- BASE DE CONHECIMENTO ESPECÍFICA ---\n${tenantConfig.ai.knowledgeBase}\n--------------------------------------`;
+        }
+
+        // --- NEW: Inject SLA and Business Hours ---
+        if (tenantConfig.slaConfig) {
+          personalizedPrompt += `\n\n--- POLÍTICA DE SLA ---\nTempo de Resposta: ${tenantConfig.slaConfig.responseTimeMinutes} minutos.\nTempo de Resolução: ${tenantConfig.slaConfig.resolutionTimeHours} horas.\n-----------------------`;
+        }
+
+        if (tenantConfig.businessHours) {
+          const schedule = tenantConfig.businessHours.schedule
+            .map((item: any) => `${item.day}: ${item.closed ? 'Fechado' : `${item.open} às ${item.close}`}`)
+            .join('\n');
+          personalizedPrompt += `\n\n--- HORÁRIO DE FUNCIONAMENTO ---\nFuso Horário: ${tenantConfig.businessHours.timezone}\n${schedule}\n---------------------------------`;
+        }
+
+        // --- NEW: Inform AI about Business Rules/Entity ---
+        personalizedPrompt += `\n\n--- REGRAS DE NEGÓCIO E AMBIENTE ---\nEste sistema é um CRM focado em ${entityConfig.entityNamePlural || "servidores"}.
+A entidade principal é chamada de "${entityConfig.entityName || "servidor"}".
+Departamentos ativos: ${entityConfig.departments?.join(', ') || "Não informados"}.
+--------------------------------------`;
       }
+    }
+
+    // --- NEW: Enrich context with DIRECT values (Tests/Playground) ---
+    if (context?.servidor_nome || context?.servidor_matricula || context?.servidor_secretaria) {
+      personalizedPrompt += `\n\n--- DADOS DO USUÁRIO ATUAL (TESTE/PLAYGROUND) ---
+O usuário com quem você está falando agora forneceu os seguintes dados:
+- Nome: ${context.servidor_nome || 'Não informado'}
+- Matrícula: ${context.servidor_matricula || 'Não informada'}
+- Secretaria/Setor: ${context.servidor_secretaria || 'Não informada'}
+--------------------------------------------------`;
     }
 
     // Enriquecer contexto com dados do contato
@@ -357,6 +398,7 @@ serve(async (req) => {
       JSON.stringify({
         message: cleanMessage,
         needsHumanTransfer: needsHumanTransfer || finalMessage.includes("[TRANSFERIR_HUMANO]"),
+        actionTaken: internalActions.length > 0 ? internalActions.join(", ") : undefined,
         usage: data.usage
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

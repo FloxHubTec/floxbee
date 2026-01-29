@@ -16,6 +16,7 @@ interface Message {
   content: string;
   timestamp: Date;
   needsHumanTransfer?: boolean;
+  actionTaken?: string;
 }
 
 interface AIContext {
@@ -31,10 +32,10 @@ interface AIChatProps {
   className?: string;
 }
 
-export const AIChat: React.FC<AIChatProps> = ({ 
-  context, 
+export const AIChat: React.FC<AIChatProps> = ({
+  context,
   onHumanTransferRequest,
-  className 
+  className
 }) => {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -79,7 +80,7 @@ export const AIChat: React.FC<AIChatProps> = ({
       const apiMessages = messages
         .filter(m => m.id !== "welcome")
         .map(m => ({ role: m.role, content: m.content }));
-      
+
       apiMessages.push({ role: "user", content: userMessage.content });
 
       const { data, error } = await supabase.functions.invoke("ai-chat", {
@@ -97,6 +98,7 @@ export const AIChat: React.FC<AIChatProps> = ({
         content: data.message || "Desculpe, não consegui processar sua mensagem.",
         timestamp: new Date(),
         needsHumanTransfer: data.needsHumanTransfer,
+        actionTaken: data.actionTaken, // Adicionando feedback de ação
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -111,9 +113,9 @@ export const AIChat: React.FC<AIChatProps> = ({
       }
     } catch (error) {
       console.error("AI Chat error:", error);
-      
+
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      
+
       if (errorMessage.includes("429") || errorMessage.includes("Rate limit")) {
         toast({
           title: "Limite de requisições",
@@ -168,7 +170,7 @@ export const AIChat: React.FC<AIChatProps> = ({
           </Badge>
         </CardTitle>
       </CardHeader>
-      
+
       <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
@@ -182,8 +184,8 @@ export const AIChat: React.FC<AIChatProps> = ({
               >
                 <Avatar className="w-8 h-8 shrink-0">
                   <AvatarFallback className={cn(
-                    message.role === "user" 
-                      ? "bg-primary text-primary-foreground" 
+                    message.role === "user"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-secondary"
                   )}>
                     {message.role === "user" ? (
@@ -193,35 +195,42 @@ export const AIChat: React.FC<AIChatProps> = ({
                     )}
                   </AvatarFallback>
                 </Avatar>
-                
+
                 <div className={cn(
-                  "max-w-[80%] rounded-2xl px-4 py-2.5",
+                  "max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm transition-all animate-in fade-in slide-in-from-bottom-2",
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-tr-sm"
-                    : "bg-muted rounded-tl-sm"
+                    ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground rounded-tr-sm"
+                    : "bg-background border border-border rounded-tl-sm"
                 )}>
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  
-                  {message.needsHumanTransfer && (
-                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-current/20 text-xs opacity-80">
-                      <AlertTriangle className="w-3 h-3" />
-                      Transferindo para atendente
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+
+                  {message.actionTaken && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed border-primary/20 text-[10px] text-primary font-medium">
+                      <Zap className="w-3 h-3" />
+                      {message.actionTaken}
                     </div>
                   )}
-                  
+
+                  {message.needsHumanTransfer && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-current/20 text-[10px] opacity-80 font-medium">
+                      <AlertTriangle className="w-3 h-3" />
+                      Transferindo para atendente humano
+                    </div>
+                  )}
+
                   <p className={cn(
-                    "text-xs mt-1 opacity-60",
+                    "text-[10px] mt-1.5 opacity-50",
                     message.role === "user" ? "text-right" : "text-left"
                   )}>
-                    {message.timestamp.toLocaleTimeString("pt-BR", { 
-                      hour: "2-digit", 
-                      minute: "2-digit" 
+                    {message.timestamp.toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit"
                     })}
                   </p>
                 </div>
               </div>
             ))}
-            
+
             {isLoading && (
               <div className="flex gap-3">
                 <Avatar className="w-8 h-8">
@@ -237,7 +246,7 @@ export const AIChat: React.FC<AIChatProps> = ({
                 </div>
               </div>
             )}
-            
+
             <div ref={scrollRef} />
           </div>
         </ScrollArea>
@@ -253,8 +262,8 @@ export const AIChat: React.FC<AIChatProps> = ({
               disabled={isLoading}
               className="flex-1"
             />
-            <Button 
-              onClick={sendMessage} 
+            <Button
+              onClick={sendMessage}
               disabled={!input.trim() || isLoading}
               size="icon"
             >
