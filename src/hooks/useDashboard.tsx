@@ -280,7 +280,12 @@ export const useActiveAgents = () => {
         }
       });
 
-      const { data: profiles } = await supabase.from('profiles').select('id, nome').eq('owner_id', ownerId).eq('ativo', true);
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, nome, role')
+        .eq('owner_id', ownerId)
+        .eq('ativo', true)
+        .in('role', ['supervisor', 'agente']);
 
       return profiles?.map(p => ({
         id: p.id,
