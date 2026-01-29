@@ -6,6 +6,8 @@
 .env.production.local
 *.local
 
+requisitos.txt
+
 # Logs
 logs
 *.log

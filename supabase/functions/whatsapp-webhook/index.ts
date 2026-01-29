@@ -64,28 +64,27 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch integration config and owner_id
-    // We try to find any WhatsApp integration, prioritizing active ones
+    // Fetch all WhatsApp verify tokens from integrations table
     const { data: integrations } = await supabase
       .from("integrations")
-      .select("config, owner_id, is_active")
+      .select("config")
       .eq("integration_type", "whatsapp")
-      .order("is_active", { ascending: false });
+      .eq("is_active", true);
 
-    const integration = integrations?.[0];
-    const ownerId = integration?.owner_id;
+    const validTokens = new Set([
+      Deno.env.get("WHATSAPP_VERIFY_TOKEN"),
+      "floxbee_verify_token_2026"
+    ]);
 
-    const VERIFY_TOKEN = integration?.config?.webhook_verify_token ||
-      Deno.env.get("WHATSAPP_VERIFY_TOKEN") ||
-      "floxbee_verify_token_2024";
-
-    console.log("Token comparison:", {
-      receivedToken: token,
-      expectedToken: VERIFY_TOKEN,
-      tokensMatch: token === VERIFY_TOKEN,
+    integrations?.forEach(i => {
+      if (i.config?.webhook_verify_token) {
+        validTokens.add(i.config.webhook_verify_token);
+      }
     });
 
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("Checking verify token against valid list of size:", validTokens.size);
+
+    if (mode === "subscribe" && token && validTokens.has(token)) {
       console.log("Webhook verified successfully!");
       return new Response(challenge, { status: 200 });
     } else {
@@ -105,26 +104,32 @@ serve(async (req) => {
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // Fetch integration config and owner_id
-      const { data: integrations, error: intError } = await supabase
-        .from("integrations")
-        .select("config, owner_id, is_active")
-        .eq("integration_type", "whatsapp")
-        .order("is_active", { ascending: false });
-
-      if (intError) {
-        console.error("Error fetching integrations:", intError);
-      }
-
-      console.log("Available WhatsApp integrations:", JSON.stringify(integrations));
-
-      const integration = integrations?.[0];
-      const ownerId = integration?.owner_id;
-      console.log("Resolved owner_id for this session:", ownerId);
-
       for (const entry of payload.entry || []) {
         for (const change of entry.changes || []) {
           const value = change.value;
+          const phoneNumberId = value.metadata?.phone_number_id;
+
+          if (!phoneNumberId) {
+            console.warn("No phone_number_id found in payload metadata");
+            continue;
+          }
+
+          // Fetch the specific integration for this phone_number_id
+          const { data: integration, error: intError } = await supabase
+            .from("integrations")
+            .select("config, owner_id")
+            .eq("integration_type", "whatsapp")
+            .eq("is_active", true)
+            .filter("config->>phone_number_id", "eq", phoneNumberId)
+            .maybeSingle();
+
+          if (intError || !integration) {
+            console.error(`No active integration found for phone_number_id: ${phoneNumberId}`, intError);
+            continue;
+          }
+
+          const ownerId = integration.owner_id;
+          console.log(`Resolved owner_id: ${ownerId} for phone_number_id: ${phoneNumberId}`);
 
           // Process incoming messages
           if (value.messages && value.messages.length > 0) {
