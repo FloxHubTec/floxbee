@@ -13,31 +13,31 @@ export interface IntegrationConfig {
     test_error?: string;
 }
 
-export function useIntegrations() {
+export function useIntegrations(targetOwnerId?: string) {
     const [integrations, setIntegrations] = useState<IntegrationConfig[]>([]);
     const [loading, setLoading] = useState(true);
     const { profile } = useAuth();
 
+    // O ID alvo será o passado por parâmetro (pelo Superadmin) 
+    // ou o do próprio perfil (ou seu criador se for agente)
+    const effectiveOwnerId = targetOwnerId || (profile?.created_by || profile?.id);
+
     useEffect(() => {
-        if (profile?.id) {
+        if (effectiveOwnerId) {
             loadIntegrations();
         }
-    }, [profile?.id]);
+    }, [effectiveOwnerId]);
 
     async function loadIntegrations() {
+        if (!effectiveOwnerId) return;
+
         try {
             setLoading(true);
-
-            // Se sou agente, carrego as integrações do meu criador
-            let targetOwnerId = profile?.id;
-            if (profile?.created_by) {
-                targetOwnerId = profile.created_by;
-            }
 
             const { data, error } = await supabase
                 .from('integrations')
                 .select('*')
-                .eq('owner_id', targetOwnerId);
+                .eq('owner_id', effectiveOwnerId);
 
             if (error) throw error;
 
@@ -51,13 +51,13 @@ export function useIntegrations() {
     }
 
     async function saveIntegration(integration: IntegrationConfig) {
-        if (!profile?.id) return;
+        if (!effectiveOwnerId) return;
 
         try {
             const { error } = await supabase
                 .from('integrations')
                 .upsert({
-                    owner_id: profile.id,
+                    owner_id: effectiveOwnerId,
                     integration_type: integration.integration_type,
                     config: integration.config,
                     is_active: integration.is_active,
@@ -76,18 +76,17 @@ export function useIntegrations() {
     }
 
     async function testIntegration(type: IntegrationConfig['integration_type']) {
-        if (!profile?.id) return;
+        if (!effectiveOwnerId) return;
 
         try {
             // Atualizar status para pending
             await supabase
                 .from('integrations')
                 .update({ test_status: 'pending' })
-                .eq('owner_id', profile.id)
+                .eq('owner_id', effectiveOwnerId)
                 .eq('integration_type', type);
 
-            // Aqui você pode chamar uma Edge Function para testar a integração
-            // Por enquanto, vamos simular um teste bem-sucedido
+            // Simular teste (Pode ser substituído por chamada de API real)
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             await supabase
@@ -97,7 +96,7 @@ export function useIntegrations() {
                     last_tested_at: new Date().toISOString(),
                     test_error: null
                 })
-                .eq('owner_id', profile.id)
+                .eq('owner_id', effectiveOwnerId)
                 .eq('integration_type', type);
 
             toast.success('Teste realizado com sucesso!');
@@ -111,7 +110,7 @@ export function useIntegrations() {
                     test_status: 'failed',
                     test_error: error instanceof Error ? error.message : 'Erro desconhecido'
                 })
-                .eq('owner_id', profile.id)
+                .eq('owner_id', effectiveOwnerId)
                 .eq('integration_type', type);
 
             toast.error('Erro ao testar integração');
@@ -129,6 +128,7 @@ export function useIntegrations() {
         saveIntegration,
         testIntegration,
         getIntegration,
-        refreshIntegrations: loadIntegrations
+        refreshIntegrations: loadIntegrations,
+        effectiveOwnerId
     };
 }

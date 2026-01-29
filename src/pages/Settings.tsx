@@ -36,6 +36,7 @@ import TenantSettings from '@/components/settings/TenantSettings';
 import NotificationSettings from '@/components/tickets/NotificationSettings';
 import ChangePasswordDialog from '@/components/auth/ChangePasswordDialog';
 import IntegrationsSettings from '@/components/settings/IntegrationsSettings';
+import ModuleSettings from '@/components/settings/ModuleSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -155,7 +156,7 @@ const Settings: React.FC = () => {
     analyticsEnabled: localStorage.getItem('floxbee_analytics_enabled') !== 'false'
   });
 
-  // Redirecionamento de segurança: Se não for admin, força aba de perfil
+  // Redirecionamento de segurança: Se não for admin nem superadmin, força aba de perfil
   useEffect(() => {
     if (!isAdmin && !isSuperadmin && activeTab !== 'profile') {
       setActiveTab('profile');
@@ -233,7 +234,14 @@ const Settings: React.FC = () => {
               </TabsTrigger>
             )}
 
-            {canManageSystem && (
+            {isSuperadmin && (
+              <TabsTrigger value="modules" className="gap-2 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <Settings2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Módulos</span>
+              </TabsTrigger>
+            )}
+
+            {isSuperadmin && (
               <TabsTrigger value="integrations" className="gap-2 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Globe className="w-4 h-4" />
                 <span className="hidden sm:inline">Integrações</span>
@@ -377,55 +385,15 @@ const Settings: React.FC = () => {
             </TabsContent>
           )}
 
-          {canManageSystem && (
-            <TabsContent value="integrations" className="space-y-6 animate-in fade-in-50 duration-300">
-              <IntegrationsSettings />
+          {isSuperadmin && (
+            <TabsContent value="modules" className="animate-in fade-in-50 duration-300">
+              <ModuleSettings />
+            </TabsContent>
+          )}
 
-              <Card>
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Settings2 className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle>Configurações Avançadas</CardTitle>
-                    <CardDescription>Opções técnicas locais do sistema</CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Modo de debug</p>
-                        <p className="text-xs text-muted-foreground">Exibir logs detalhados no console do navegador</p>
-                      </div>
-                      <Switch
-                        checked={advancedSettings.debugMode}
-                        onCheckedChange={() => toggleAdvancedSetting('debugMode')}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Cache de mensagens</p>
-                        <p className="text-xs text-muted-foreground">Armazenar mensagens localmente para carregamento mais rápido</p>
-                      </div>
-                      <Switch
-                        checked={advancedSettings.cacheEnabled}
-                        onCheckedChange={() => toggleAdvancedSetting('cacheEnabled')}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Analytics Anônimo</p>
-                        <p className="text-xs text-muted-foreground">Permitir coleta de dados de uso para melhoria do sistema</p>
-                      </div>
-                      <Switch
-                        checked={advancedSettings.analyticsEnabled}
-                        onCheckedChange={() => toggleAdvancedSetting('analyticsEnabled')}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          {isSuperadmin && (
+            <TabsContent value="integrations" className="animate-in fade-in-50 duration-300">
+              <IntegrationsSettings />
             </TabsContent>
           )}
         </Tabs>

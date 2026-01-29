@@ -29,8 +29,10 @@ import {
   Loader2,
   Upload,
   X,
-  Building2
+  Building2,
+  BookOpen
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_TENANT, TenantConfig } from "@/config/tenant";
 import { useFileUpload } from "@/hooks/useFileUpload";
 
@@ -239,11 +241,10 @@ export default function TenantSettings() {
       </div>
 
       <Tabs defaultValue="ai" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="branding" className="flex items-center gap-2"><Zap className="h-4 w-4" /> Branding</TabsTrigger>
           <TabsTrigger value="entity" className="flex items-center gap-2"><Users className="h-4 w-4" /> Entidade</TabsTrigger>
           <TabsTrigger value="ai" className="flex items-center gap-2"><Bot className="h-4 w-4" /> IA</TabsTrigger>
-          <TabsTrigger value="features" className="flex items-center gap-2"><Settings2 className="h-4 w-4" /> Módulos & SLA</TabsTrigger>
         </TabsList>
 
         <TabsContent value="branding">
@@ -491,7 +492,28 @@ export default function TenantSettings() {
 
               <div className="space-y-2">
                 <Label>Prompt de Sistema</Label>
-                <textarea className="w-full min-h-[150px] p-3 border rounded-lg bg-background font-mono text-sm" value={localConfig.ai.systemPromptTemplate} onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, systemPromptTemplate: e.target.value } })} />
+                <Textarea
+                  className="min-h-[150px] font-mono text-sm"
+                  value={localConfig.ai.systemPromptTemplate}
+                  onChange={e => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, systemPromptTemplate: e.target.value } })}
+                  placeholder="Instruções básicas para a IA..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  Base de Conhecimento
+                </Label>
+                <Textarea
+                  value={localConfig.ai.knowledgeBase || ""}
+                  onChange={(e) => setLocalConfig({ ...localConfig, ai: { ...localConfig.ai, knowledgeBase: e.target.value } })}
+                  placeholder="Digite aqui as informações que a IA deve conhecer para atender seus clientes..."
+                  className="min-h-[200px]"
+                />
+                <p className="text-xs text-muted-foreground italic">
+                  Use este campo para fornecer o contexto de negócio, regras de atendimento e informações sobre produtos ou serviços.
+                </p>
               </div>
 
               <div className="space-y-4 pt-4 border-t">
@@ -553,89 +575,6 @@ export default function TenantSettings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="features">
-          <div className="grid gap-6">
-            <Card>
-              <CardHeader><CardTitle>SLA e Horários</CardTitle></CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><Clock className="h-4 w-4" /> Resposta (Minutos)</Label>
-                    <Input type="number" value={localConfig.slaConfig?.responseTimeMinutes} onChange={e => setLocalConfig({ ...localConfig, slaConfig: { ...localConfig.slaConfig!, responseTimeMinutes: parseInt(e.target.value) || 0 } })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><Clock className="h-4 w-4" /> Resolução (Horas)</Label>
-                    <Input type="number" value={localConfig.slaConfig?.resolutionTimeHours} onChange={e => setLocalConfig({ ...localConfig, slaConfig: { ...localConfig.slaConfig!, resolutionTimeHours: parseInt(e.target.value) || 0 } })} />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <Label className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Horário de Funcionamento</Label>
-                  <div className="space-y-2">
-                    {localConfig.businessHours?.schedule.map((item, idx) => (
-                      <div key={item.day} className="flex items-center gap-4 p-2 border rounded bg-muted/10">
-                        <div className="w-24 font-medium">{item.day}</div>
-                        <Input type="time" value={item.open} disabled={item.closed} onChange={e => {
-                          const sched = [...localConfig.businessHours!.schedule];
-                          sched[idx] = { ...item, open: e.target.value };
-                          setLocalConfig({ ...localConfig, businessHours: { ...localConfig.businessHours!, schedule: sched } });
-                        }} />
-                        <span>-</span>
-                        <Input type="time" value={item.close} disabled={item.closed} onChange={e => {
-                          const sched = [...localConfig.businessHours!.schedule];
-                          sched[idx] = { ...item, close: e.target.value };
-                          setLocalConfig({ ...localConfig, businessHours: { ...localConfig.businessHours!, schedule: sched } });
-                        }} />
-                        <Switch checked={!item.closed} onCheckedChange={checked => {
-                          const sched = [...localConfig.businessHours!.schedule];
-                          sched[idx] = { ...item, closed: !checked };
-                          setLocalConfig({ ...localConfig, businessHours: { ...localConfig.businessHours!, schedule: sched } });
-                        }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Configurações de Comunicação</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/10">
-                  <div className="space-y-0.5">
-                    <Label className="flex items-center gap-2"><Zap className="h-4 w-4 text-primary" /> Controle de Frequência</Label>
-                    <p className="text-xs text-muted-foreground">Intervalo mínimo (horas) para repetir campanhas para o mesmo contato</p>
-                  </div>
-                  <div className="w-32">
-                    <Input
-                      type="number"
-                      value={localConfig.communicationConfig?.frequencyLimitHours || 24}
-                      onChange={e => setLocalConfig({
-                        ...localConfig,
-                        communicationConfig: {
-                          ...localConfig.communicationConfig,
-                          frequencyLimitHours: parseInt(e.target.value) || 0
-                        }
-                      })}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Módulos do Sistema</CardTitle></CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4">
-                {Object.entries(localConfig.features).map(([key, val]) => (
-                  <div key={key} className="flex items-center justify-between p-4 border rounded-lg">
-                    <Label className="capitalize">{key.replace('enable', '').replace(/([A-Z])/g, ' $1')}</Label>
-                    <Switch checked={val} onCheckedChange={checked => setLocalConfig({ ...localConfig, features: { ...localConfig.features, [key]: checked } })} />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
       </Tabs>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t flex justify-end gap-2 z-50">
