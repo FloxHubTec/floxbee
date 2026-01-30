@@ -197,6 +197,12 @@ export const exportLandingPageSubmissionsToExcel = (submissions: any[], landingP
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Submissões');
 
+    // Generate filename
+    const fileName = `leads_${landingPageTitle.toLowerCase().replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(workbook, fileName);
+
     return fileName;
 };
 

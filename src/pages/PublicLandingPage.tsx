@@ -158,7 +158,45 @@ const PublicLandingPage: React.FC = () => {
         return null;
     };
 
-    const primaryColor = content.layout?.primaryColor || '#3b82f6';
+    const primaryColorHex = content.layout?.primaryColor || '#3b82f6';
+    const primaryForegroundHex = content.layout?.primaryForeground || '#ffffff';
+    const secondaryColorHex = content.layout?.secondaryColor || '#10b981';
+    const secondaryForegroundHex = content.layout?.secondaryForeground || '#ffffff';
+    const fontFamily = content.layout?.fontFamily || 'Inter';
+
+    // Helper to convert HEX to HSL for Tailwind compatibility
+    const hexToHsl = (hex: string) => {
+        if (!hex) return '0 0% 0%';
+        let r = 0, g = 0, b = 0;
+        if (hex.length === 4) {
+            r = parseInt(hex[1] + hex[1], 16);
+            g = parseInt(hex[2] + hex[2], 16);
+            b = parseInt(hex[3] + hex[3], 16);
+        } else if (hex.length === 7) {
+            r = parseInt(hex.substring(1, 3), 16);
+            g = parseInt(hex.substring(3, 5), 16);
+            b = parseInt(hex.substring(5, 7), 16);
+        }
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0, s = 0, l = (max + min) / 2;
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+    };
+
+    const primaryHsl = hexToHsl(primaryColorHex);
+    const primaryForegroundHsl = hexToHsl(primaryForegroundHex);
+    const secondaryHsl = hexToHsl(secondaryColorHex);
+    const secondaryForegroundHsl = hexToHsl(secondaryForegroundHex);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -182,7 +220,21 @@ const PublicLandingPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background text-foreground selection:bg-primary/20" style={{ '--primary': primaryColor } as React.CSSProperties}>
+        <div
+            className="min-h-screen bg-background text-foreground selection:bg-primary/20"
+            style={{
+                '--primary': primaryHsl,
+                '--primary-foreground': primaryForegroundHsl,
+                '--secondary': secondaryHsl,
+                '--secondary-foreground': secondaryForegroundHsl,
+                'fontFamily': fontFamily + ', sans-serif'
+            } as React.CSSProperties}
+        >
+            {/* Dynamic Font Loading */}
+            <link
+                href={`https://fonts.googleapis.com/css2?family=${fontFamily.replace(/\s+/g, '+')}:wght@300;400;500;600;700&display=swap`}
+                rel="stylesheet"
+            />
             {/* Header / Navigation */}
             <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
                 <div className="container mx-auto px-4 h-20 flex items-center justify-between">
@@ -261,7 +313,7 @@ const PublicLandingPage: React.FC = () => {
                                 {content.funcionalidades.items.map((item: any, idx: number) => (
                                     <Card key={idx} className="group hover:shadow-2xl transition-all duration-500 border-primary/10 hover:border-primary/30 overflow-hidden rounded-3xl">
                                         <CardContent className="p-8 space-y-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-500">
+                                            <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-secondary-foreground transition-colors duration-500">
                                                 <Zap className="w-6 h-6" />
                                             </div>
                                             <h3 className="text-xl font-bold">{item}</h3>
@@ -344,8 +396,8 @@ const PublicLandingPage: React.FC = () => {
                                         <h2 className="text-3xl font-bold text-center lg:text-left">{content.metricas.title || "Nossos Números"}</h2>
                                         <div className="grid grid-cols-2 gap-6">
                                             {content.metricas.items.map((item: any, idx: number) => (
-                                                <div key={idx} className="p-8 rounded-3xl bg-primary/5 border border-primary/10 text-center space-y-2">
-                                                    <div className="text-4xl font-extrabold text-primary">{item.value}</div>
+                                                <div key={idx} className="p-8 rounded-3xl bg-secondary/5 border border-secondary/10 text-center space-y-2">
+                                                    <div className="text-4xl font-extrabold text-secondary">{item.value}</div>
                                                     <div className="text-sm font-medium text-muted-foreground uppercase tracking-widest">{item.label}</div>
                                                 </div>
                                             ))}
@@ -366,7 +418,7 @@ const PublicLandingPage: React.FC = () => {
                                 <h2 className="text-4xl md:text-5xl font-bold leading-tight">
                                     {content.cta.title}
                                 </h2>
-                                <p className="text-xl opacity-90 leading-relaxed">
+                                <p className="text-xl opacity-90 leading-relaxed text-primary-foreground">
                                     {content.cta.text}
                                 </p>
                                 <div className="pt-4">

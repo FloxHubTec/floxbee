@@ -104,7 +104,14 @@ const LandingPages: React.FC = () => {
 
     // Default structure for dynamic content - Now with generic labels and media support
     const DEFAULT_CONTEUDO = {
-        layout: { primaryColor: '#3b82f6', logoUrl: '' },
+        layout: {
+            primaryColor: '#3b82f6',
+            primaryForeground: '#ffffff',
+            secondaryColor: '#10b981',
+            secondaryForeground: '#ffffff',
+            fontFamily: 'Inter',
+            logoUrl: ''
+        },
         hero: { title: '', subtitle: '', imageUrl: '', videoUrl: '' },
         apresentacao: { title: 'Apresentação', text: '', imageUrl: '', videoUrl: '' },
         funcionalidades: { title: 'Destaques & Recursos', items: [] },
@@ -557,26 +564,92 @@ const LandingPages: React.FC = () => {
                                     <div className="flex items-center justify-between">
                                         <h4 className="font-medium text-sm">Design & Identidade</h4>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         <div className="space-y-2">
                                             <Label>Cor Primária</Label>
                                             <div className="flex gap-2">
                                                 <Input
                                                     type="color"
-                                                    value={conteudo.layout.primaryColor}
+                                                    value={conteudo.layout.primaryColor || '#3b82f6'}
                                                     onChange={(e) => updateConteudo('layout', { primaryColor: e.target.value })}
                                                     className="w-12 h-10 p-1 cursor-pointer"
                                                 />
                                                 <Input
-                                                    value={conteudo.layout.primaryColor}
+                                                    value={conteudo.layout.primaryColor || '#3b82f6'}
                                                     onChange={(e) => updateConteudo('layout', { primaryColor: e.target.value })}
-                                                    placeholder="#3b82f6"
-                                                    className="font-mono"
+                                                    className="font-mono text-xs"
                                                 />
                                             </div>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>URL do Logo (SVG ou PNG)</Label>
+                                            <Label>Texto sobre Primária</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={conteudo.layout.primaryForeground || '#ffffff'}
+                                                    onChange={(e) => updateConteudo('layout', { primaryForeground: e.target.value })}
+                                                    className="w-12 h-10 p-1 cursor-pointer"
+                                                />
+                                                <Input
+                                                    value={conteudo.layout.primaryForeground || '#ffffff'}
+                                                    onChange={(e) => updateConteudo('layout', { primaryForeground: e.target.value })}
+                                                    className="font-mono text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Cor Secundária</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={conteudo.layout.secondaryColor || '#10b981'}
+                                                    onChange={(e) => updateConteudo('layout', { secondaryColor: e.target.value })}
+                                                    className="w-12 h-10 p-1 cursor-pointer"
+                                                />
+                                                <Input
+                                                    value={conteudo.layout.secondaryColor || '#10b981'}
+                                                    onChange={(e) => updateConteudo('layout', { secondaryColor: e.target.value })}
+                                                    className="font-mono text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Texto sobre Secundária</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={conteudo.layout.secondaryForeground || '#ffffff'}
+                                                    onChange={(e) => updateConteudo('layout', { secondaryForeground: e.target.value })}
+                                                    className="w-12 h-10 p-1 cursor-pointer"
+                                                />
+                                                <Input
+                                                    value={conteudo.layout.secondaryForeground || '#ffffff'}
+                                                    onChange={(e) => updateConteudo('layout', { secondaryForeground: e.target.value })}
+                                                    className="font-mono text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Tipo de Fonte</Label>
+                                            <Select
+                                                value={conteudo.layout.fontFamily || 'Inter'}
+                                                onValueChange={(v) => updateConteudo('layout', { fontFamily: v })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Inter">Inter (Sans)</SelectItem>
+                                                    <SelectItem value="Outfit">Outfit (Moderna)</SelectItem>
+                                                    <SelectItem value="Roboto">Roboto (Clássica)</SelectItem>
+                                                    <SelectItem value="Montserrat">Montserrat (Elegante)</SelectItem>
+                                                    <SelectItem value="Playfair Display">Playfair (Serifada)</SelectItem>
+                                                    <SelectItem value="Fira Code">Fira Code (Mono)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>URL do Logo</Label>
                                             <Input
                                                 value={conteudo.layout.logoUrl}
                                                 onChange={(e) => updateConteudo('layout', { logoUrl: e.target.value })}
