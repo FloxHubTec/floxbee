@@ -70,6 +70,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const LandingPages: React.FC = () => {
     const { toast } = useToast();
@@ -96,6 +97,35 @@ const LandingPages: React.FC = () => {
     ]);
     const [newField, setNewField] = useState({ label: '', type: 'text', required: false });
 
+    // Local text states for list fields to avoid typing issues with commas/spaces
+    const [itemsText, setItemsText] = useState('');
+    const [stepsText, setStepsText] = useState('');
+    const [metricasText, setMetricasText] = useState('');
+
+    // Default structure for dynamic content - Now with generic labels and media support
+    const DEFAULT_CONTEUDO = {
+        layout: { primaryColor: '#3b82f6', logoUrl: '' },
+        hero: { title: '', subtitle: '', imageUrl: '', videoUrl: '' },
+        apresentacao: { title: 'Apresentação', text: '', imageUrl: '', videoUrl: '' },
+        funcionalidades: { title: 'Destaques & Recursos', items: [] },
+        detalhes: { title: 'Detalhes Técnicos', features: [], text: '' },
+        legal: { title: 'Segurança & Privacidade', text: '' },
+        operacao: { title: 'Operação & Governança', text: '' },
+        onboarding: { title: 'Processo de Onboarding', steps: [] },
+        metricas: { title: 'Resultados & Métricas', items: [] },
+        materiais: { title: 'Documentos & Materiais', links: [] },
+        cta: { title: 'Pronto para começar?', text: '', benefits: [] }
+    };
+
+    const [conteudo, setConteudo] = useState<any>(DEFAULT_CONTEUDO);
+
+    const updateConteudo = (section: string, data: any) => {
+        setConteudo((prev: any) => ({
+            ...prev,
+            [section]: { ...prev[section], ...data }
+        }));
+    };
+
     // Submissions fetching (hook is called inside the component now for the list)
     const { data: submissions = [], isLoading: isLoadingSubmissions } = useLandingPageSubmissions(selectedLandingPage?.id || null);
 
@@ -120,6 +150,22 @@ const LandingPages: React.FC = () => {
         }
     };
 
+    const resetForm = () => {
+        setSelectedLandingPage(null);
+        setTitulo('');
+        setSlug('');
+        setDescricao('');
+        setConteudo(DEFAULT_CONTEUDO);
+        setFormFields([
+            { name: 'nome', label: 'Nome', type: 'text', required: true },
+            { name: 'whatsapp', label: 'WhatsApp', type: 'tel', required: true },
+            { name: 'email', label: 'Email', type: 'email', required: false },
+        ]);
+        setItemsText('');
+        setStepsText('');
+        setMetricasText('');
+    };
+
     const handleSave = async () => {
         if (!titulo || !slug) {
             toast({
@@ -131,29 +177,58 @@ const LandingPages: React.FC = () => {
         }
 
         try {
-            await createLandingPage.mutateAsync({
+            // Process local text states back into arrays before saving
+            const finalConteudo = {
+                ...conteudo,
+                funcionalidades: {
+                    ...conteudo.funcionalidades,
+                    items: itemsText.split(',').map(i => i.trim()).filter(Boolean)
+                },
+                onboarding: {
+                    ...conteudo.onboarding,
+                    steps: stepsText.split(',').map(i => i.trim()).filter(Boolean)
+                },
+                metricas: {
+                    ...conteudo.metricas,
+                    items: metricasText.split(',').map(part => {
+                        const [label, value] = part.split(':').map(s => s.trim());
+                        return label && value ? { label, value } : null;
+                    }).filter(Boolean)
+                }
+            };
+
+            const payload = {
                 titulo,
                 slug,
                 descricao,
-                conteudo: { hero: { title: titulo, subtitle: descricao } },
+                conteudo: finalConteudo,
                 configuracao: { theme: 'light', primaryColor: '#3b82f6' },
                 form_fields: formFields,
                 ativo: true,
                 template_tipo: 'padrao',
                 seo_meta: { title: titulo, description: descricao },
-                published_at: new Date().toISOString(),
-                owner_id: null,
-            });
+                published_at: selectedLandingPage?.published_at || new Date().toISOString(),
+            };
 
-            toast({
-                title: 'Landing Page criada!',
-                description: `Sua landing page está disponível em /lp/${slug}`,
-            });
+            if (selectedLandingPage) {
+                await updateLandingPage.mutateAsync({
+                    id: selectedLandingPage.id,
+                    ...payload,
+                });
+                toast({
+                    title: 'Landing Page atualizada!',
+                    description: 'As alterações foram salvas com sucesso.',
+                });
+            } else {
+                await createLandingPage.mutateAsync(payload);
+                toast({
+                    title: 'Landing Page criada!',
+                    description: `Sua landing page está disponível em /lp/${slug}`,
+                });
+            }
 
             setShowCreateDialog(false);
-            setTitulo('');
-            setSlug('');
-            setDescricao('');
+            resetForm();
         } catch (error: any) {
             console.error('Error creating landing page:', error);
             toast({
@@ -195,6 +270,37 @@ const LandingPages: React.FC = () => {
             description: 'URL da landing page copiada para a área de transferência.',
         });
     };
+
+    const handleEdit = (lp: LandingPageType) => {
+        setSelectedLandingPage(lp);
+        setTitulo(lp.titulo);
+        setSlug(lp.slug);
+        setDescricao(lp.descricao || '');
+        setFormFields(lp.form_fields || []);
+
+        // Merge with defaults to ensure all sections exist
+        const mergedConteudo = { ...DEFAULT_CONTEUDO };
+        if (lp.conteudo) {
+            Object.keys(lp.conteudo).forEach(key => {
+                if (lp.conteudo[key]) {
+                    mergedConteudo[key as keyof typeof DEFAULT_CONTEUDO] = {
+                        ...mergedConteudo[key as keyof typeof DEFAULT_CONTEUDO],
+                        ...lp.conteudo[key]
+                    };
+                }
+            });
+        }
+
+        setConteudo(mergedConteudo);
+
+        // Populate local text states
+        setItemsText(mergedConteudo.funcionalidades.items?.join(', ') || '');
+        setStepsText(mergedConteudo.onboarding.steps?.join(', ') || '');
+        setMetricasText(mergedConteudo.metricas.items?.map((i: any) => `${i.label}: ${i.value}`).join(', ') || '');
+
+        setShowCreateDialog(true);
+    };
+
 
     const handleToggleActive = async (lp: LandingPageType) => {
         try {
@@ -255,7 +361,10 @@ const LandingPages: React.FC = () => {
                         </p>
                     </div>
                 </div>
-                <Button className="gap-2" onClick={() => setShowCreateDialog(true)}>
+                <Button className="gap-2" onClick={() => {
+                    resetForm();
+                    setShowCreateDialog(true);
+                }}>
                     <Plus className="w-4 h-4" />
                     Nova Landing Page
                 </Button>
@@ -314,6 +423,10 @@ const LandingPages: React.FC = () => {
                                                         <DropdownMenuItem onClick={() => window.open(`/lp/${lp.slug}`, '_blank')}>
                                                             <ExternalLink className="w-4 h-4 mr-2" />
                                                             Visualizar
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleEdit(lp)}>
+                                                            <Edit className="w-4 h-4 mr-2" />
+                                                            Editar Conteúdo
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem onClick={() => handleCopyLink(lp)}>
                                                             {copiedId === lp.id ? (
@@ -385,51 +498,296 @@ const LandingPages: React.FC = () => {
 
             {/* Create Dialog */}
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-4xl max-h-[90vh]">
                     <DialogHeader>
-                        <DialogTitle>Nova Landing Page</DialogTitle>
+                        <DialogTitle>{selectedLandingPage ? 'Editar Landing Page' : 'Nova Landing Page'}</DialogTitle>
                         <DialogDescription>
-                            Configure sua landing page personalizada
+                            Configure sua landing page institucional e o formulário de captação.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <ScrollArea className="max-h-[70vh] px-1">
-                        <div className="space-y-4 pr-3">
-                            <div className="space-y-2">
-                                <Label>Título *</Label>
-                                <Input
-                                    placeholder="Ex: Cadastro de Servidores"
-                                    value={titulo}
-                                    onChange={(e) => handleTituloChange(e.target.value)}
-                                />
-                            </div>
+                    <Tabs defaultValue="geral" className="flex-1 overflow-hidden flex flex-col">
+                        <TabsList className="grid w-full grid-cols-6 mb-4">
+                            <TabsTrigger value="geral">Geral & Hero</TabsTrigger>
+                            <TabsTrigger value="apresentacao">Apresentação</TabsTrigger>
+                            <TabsTrigger value="destaques">Destaques</TabsTrigger>
+                            <TabsTrigger value="detalhes">TI & Legal</TabsTrigger>
+                            <TabsTrigger value="acao">Sucesso & CTA</TabsTrigger>
+                            <TabsTrigger value="form">Formulário</TabsTrigger>
+                        </TabsList>
 
-                            <div className="space-y-2">
-                                <Label>Slug * (URL única)</Label>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground">/lp/</span>
-                                    <Input
-                                        placeholder="cadastro-servidores"
-                                        value={slug}
-                                        onChange={(e) => setSlug(generateSlug(e.target.value))}
+                        <ScrollArea className="h-[60vh] pr-4 mt-2">
+                            {/* Aba Geral */}
+                            <TabsContent value="geral" className="space-y-4 pt-2">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Título da Página *</Label>
+                                        <Input
+                                            placeholder="Ex: Cadastro de Servidores"
+                                            value={titulo}
+                                            onChange={(e) => handleTituloChange(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Slug * (URL única)</Label>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-muted-foreground">/lp/</span>
+                                            <Input
+                                                placeholder="cadastro-servidores"
+                                                value={slug}
+                                                onChange={(e) => setSlug(generateSlug(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Descrição Curta (SEO)</Label>
+                                    <Textarea
+                                        placeholder="Breve descrição da landing page..."
+                                        value={descricao}
+                                        onChange={(e) => setDescricao(e.target.value)}
+                                        rows={2}
                                     />
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    URL será: {window.location.origin}/lp/{slug || 'seu-slug'}
-                                </p>
-                            </div>
 
-                            <div className="space-y-2">
-                                <Label>Descrição</Label>
-                                <Textarea
-                                    placeholder="Breve descrição da landing page"
-                                    value={descricao}
-                                    onChange={(e) => setDescricao(e.target.value)}
-                                    rows={3}
-                                />
-                            </div>
+                                <Separator />
 
-                            <div className="space-y-4">
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-medium text-sm">Design & Identidade</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Cor Primária</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={conteudo.layout.primaryColor}
+                                                    onChange={(e) => updateConteudo('layout', { primaryColor: e.target.value })}
+                                                    className="w-12 h-10 p-1 cursor-pointer"
+                                                />
+                                                <Input
+                                                    value={conteudo.layout.primaryColor}
+                                                    onChange={(e) => updateConteudo('layout', { primaryColor: e.target.value })}
+                                                    placeholder="#3b82f6"
+                                                    className="font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>URL do Logo (SVG ou PNG)</Label>
+                                            <Input
+                                                value={conteudo.layout.logoUrl}
+                                                onChange={(e) => updateConteudo('layout', { logoUrl: e.target.value })}
+                                                placeholder="https://exemplo.com/logo.png"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <Separator />
+
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-medium text-sm">Hero Section (Entrada)</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Título Destaque</Label>
+                                            <Input
+                                                value={conteudo.hero.title}
+                                                onChange={(e) => updateConteudo('hero', { title: e.target.value })}
+                                                placeholder="Título grande de destaque"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Subtítulo / Chamada</Label>
+                                            <Textarea
+                                                value={conteudo.hero.subtitle}
+                                                onChange={(e) => updateConteudo('hero', { subtitle: e.target.value })}
+                                                placeholder="Texto de apoio abaixo do título"
+                                                rows={2}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                                        <div className="space-y-2">
+                                            <Label>URL da Imagem (Hero)</Label>
+                                            <Input
+                                                value={conteudo.hero.imageUrl}
+                                                onChange={(e) => updateConteudo('hero', { imageUrl: e.target.value })}
+                                                placeholder="https://exemplo.com/hero.jpg"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>URL do Vídeo (Embed)</Label>
+                                            <Input
+                                                value={conteudo.hero.videoUrl}
+                                                onChange={(e) => updateConteudo('hero', { videoUrl: e.target.value })}
+                                                placeholder="YouTube or Vimeo URL"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </TabsContent>
+
+                            {/* Aba Apresentação */}
+                            <TabsContent value="apresentacao" className="space-y-6 pt-2">
+                                <div className="space-y-3">
+                                    <h4 className="font-medium border-b pb-1">Seção de Apresentação</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Título da Seção</Label>
+                                            <Input
+                                                value={conteudo.apresentacao.title}
+                                                onChange={(e) => updateConteudo('apresentacao', { title: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>URL de Mídia (Lateral)</Label>
+                                            <Input
+                                                value={conteudo.apresentacao.imageUrl || conteudo.apresentacao.videoUrl}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (val.includes('youtube.com') || val.includes('vimeo.com') || val.includes('youtu.be')) {
+                                                        updateConteudo('apresentacao', { videoUrl: val, imageUrl: '' });
+                                                    } else {
+                                                        updateConteudo('apresentacao', { imageUrl: val, videoUrl: '' });
+                                                    }
+                                                }}
+                                                placeholder="Imagem ou Vídeo para acompanhar o texto"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Texto Descritivo</Label>
+                                        <Textarea
+                                            value={conteudo.apresentacao.text}
+                                            onChange={(e) => updateConteudo('apresentacao', { text: e.target.value })}
+                                            placeholder="Descreva seu projeto, produto ou evento..."
+                                            rows={4}
+                                        />
+                                    </div>
+                                </div>
+                            </TabsContent>
+
+                            {/* Aba Destaques */}
+                            <TabsContent value="destaques" className="space-y-3 pt-2">
+                                <h4 className="font-medium border-b pb-1">Destaques & Recursos</h4>
+                                <div className="space-y-2">
+                                    <Label>Título da Seção</Label>
+                                    <Input
+                                        value={conteudo.funcionalidades.title}
+                                        onChange={(e) => updateConteudo('funcionalidades', { title: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Itens de Destaque (Separados por vírgula)</Label>
+                                    <p className="text-[10px] text-muted-foreground">O builder criará cards automáticos para cada item.</p>
+                                    <Textarea
+                                        placeholder="Ex: Suporte 24h, Design Moderno, Gratuito..."
+                                        value={itemsText}
+                                        onChange={(e) => setItemsText(e.target.value)}
+                                        rows={4}
+                                    />
+                                </div>
+                            </TabsContent>
+
+                            {/* Aba TI & Legal */}
+                            <TabsContent value="detalhes" className="space-y-6 pt-2">
+                                <div className="space-y-3">
+                                    <h4 className="font-medium border-b pb-1">Informações Adicionais</h4>
+                                    <div className="space-y-2">
+                                        <Label>Título do Detalhamento</Label>
+                                        <Input
+                                            value={conteudo.detalhes.title}
+                                            onChange={(e) => updateConteudo('detalhes', { title: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Descrição Detalhada</Label>
+                                        <Textarea
+                                            value={conteudo.detalhes.text}
+                                            onChange={(e) => updateConteudo('detalhes', { text: e.target.value })}
+                                            placeholder="Explique detalhes técnicos, diferenciais ou processos..."
+                                            rows={3}
+                                        />
+                                    </div>
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-3">
+                                    <h4 className="font-medium border-b pb-1">Privacidade & Operação</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Políticas & Segurança</Label>
+                                            <Textarea
+                                                value={conteudo.legal.text}
+                                                onChange={(e) => updateConteudo('legal', { text: e.target.value })}
+                                                rows={3}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Governança & Gestão</Label>
+                                            <Textarea
+                                                value={conteudo.operacao.text}
+                                                onChange={(e) => updateConteudo('operacao', { text: e.target.value })}
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </TabsContent>
+
+                            {/* Aba Métricas & CTA */}
+                            <TabsContent value="acao" className="space-y-6 pt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <h4 className="font-medium border-b pb-1">Processo de Onboarding</h4>
+                                        <Label className="text-[10px]">Passos (separados por vírgula)</Label>
+                                        <Textarea
+                                            placeholder="Ex: Contato, Planejamento, Execução..."
+                                            value={stepsText}
+                                            onChange={(e) => setStepsText(e.target.value)}
+                                            rows={3}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <h4 className="font-medium border-b pb-1">Métricas de Sucesso</h4>
+                                        <Label className="text-[10px]">Formato: Rótulo: Valor</Label>
+                                        <Textarea
+                                            placeholder="Ex: Crescimento: +200%, Satisfação: 98%"
+                                            value={metricasText}
+                                            onChange={(e) => setMetricasText(e.target.value)}
+                                            rows={3}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 border-t pt-4">
+                                    <h4 className="font-medium">Call to Action (Fechamento)</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Título CTA</Label>
+                                            <Input
+                                                value={conteudo.cta.title}
+                                                onChange={(e) => updateConteudo('cta', { title: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Frase de Convite</Label>
+                                            <Input
+                                                value={conteudo.cta.text}
+                                                onChange={(e) => updateConteudo('cta', { text: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </TabsContent>
+
+                            {/* Aba Formulário (Existente re-utilizada) */}
+                            <TabsContent value="form" className="space-y-4 pt-2">
                                 <div className="flex items-center justify-between">
                                     <Label>Campos do Formulário (Otimização de Captação)</Label>
                                     <Badge variant="outline" className="text-[10px]">{formFields.length} Campos</Badge>
@@ -492,12 +850,9 @@ const LandingPages: React.FC = () => {
                                         Add
                                     </Button>
                                 </div>
-                                <p className="text-[10px] text-muted-foreground">
-
-                                </p>
-                            </div>
-                        </div>
-                    </ScrollArea>
+                            </TabsContent>
+                        </ScrollArea>
+                    </Tabs>
 
                     <Separator className="my-2" />
 
@@ -506,7 +861,7 @@ const LandingPages: React.FC = () => {
                             Cancelar
                         </Button>
                         <Button onClick={handleSave} disabled={!titulo || !slug}>
-                            Criar Landing Page
+                            {selectedLandingPage ? 'Salvar Alterações' : 'Criar Landing Page'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
