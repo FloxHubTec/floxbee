@@ -33,7 +33,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenMenu }) => {
     const handleLogout = async () => {
         try {
             await signOut();
-            navigate('/login');
+            navigate('/auth');
         } catch (error) {
             console.error('Erro ao sair:', error);
         }

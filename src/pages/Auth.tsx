@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import FloxBeeLogo from "@/components/FloxBeeLogo";
-import { Loader2, Mail, Lock, User, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Loader2, Mail, Lock, User, ArrowLeft, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { z } from "zod";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -41,6 +42,10 @@ const Auth = () => {
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
+  // MFA states
+  const [showMFA, setShowMFA] = useState(false);
+  const [mfaOtp, setMfaOtp] = useState("");
+
   // Forgot password form
   const [resetEmail, setResetEmail] = useState("");
 
@@ -58,21 +63,36 @@ const Auth = () => {
         return;
       }
 
-      if (session && !showResetPassword) {
-        navigate("/");
+      if (session && !showResetPassword && !showMFA) {
+        // Only navigate if session is fully authenticated or MFA is not required
+        checkMFAStatus();
       }
       setCheckingSession(false);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session && !showResetPassword) {
-        navigate("/");
+        checkMFAStatus();
       }
       setCheckingSession(false);
     });
 
     return () => subscription.unsubscribe();
   }, [navigate, showResetPassword]);
+
+  const checkMFAStatus = async () => {
+    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (error) {
+      console.error("Error checking MFA level:", error);
+      return;
+    }
+
+    if (data.nextLevel === "aal2" && data.currentLevel !== "aal2") {
+      setShowMFA(true);
+    } else if (data.currentLevel === "aal2" || data.nextLevel === "aal1") {
+      navigate("/");
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +109,7 @@ const Auth = () => {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: loginPassword,
     });
@@ -102,14 +122,63 @@ const Auth = () => {
           : error.message,
         variant: "destructive",
       });
+      setLoading(false);
     } else {
+      // Check if MFA is needed
+      const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaData?.nextLevel === "aal2" && mfaData.currentLevel !== "aal2") {
+        setShowMFA(true);
+        setLoading(false);
+      } else {
+        toast({
+          title: "Bem-vindo!",
+          description: "Login realizado com sucesso",
+        });
+        navigate("/");
+        // Loading is set to false by navigation or naturally
+      }
+    }
+  };
+
+  const handleMFAVerify = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (mfaOtp.length !== 6) return;
+
+    setLoading(true);
+
+    try {
+      const factors = await supabase.auth.mfa.listFactors();
+      if (factors.error) throw factors.error;
+
+      const totpFactor = factors.data.totp[0];
+      if (!totpFactor) throw new Error("Nenhum fator MFA encontrado");
+
+      const challenge = await supabase.auth.mfa.challenge({ factorId: totpFactor.id });
+      if (challenge.error) throw challenge.error;
+
+      const verify = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challenge.data.id,
+        code: mfaOtp,
+      });
+
+      if (verify.error) throw verify.error;
+
       toast({
         title: "Bem-vindo!",
         description: "Login realizado com sucesso",
       });
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        title: "Erro na verificação",
+        description: error.message,
+        variant: "destructive",
+      });
+      setMfaOtp("");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -211,24 +280,77 @@ const Auth = () => {
         <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-2xl text-whatsapp-dark">
-              {showResetPassword
-                ? "Redefinir Senha"
-                : showForgotPassword
-                  ? "Recuperar Senha"
-                  : "Acesse o Sistema"}
+              {showMFA
+                ? "Verificação de 2 Fatores"
+                : showResetPassword
+                  ? "Redefinir Senha"
+                  : showForgotPassword
+                    ? "Recuperar Senha"
+                    : "Acesse o Sistema"}
             </CardTitle>
             <CardDescription>
-              {showResetPassword
-                ? "Digite sua nova senha abaixo"
-                : showForgotPassword
-                  ? "Enviaremos um link para seu email"
-                  : "CRM e Gestor de Atendimento Omnicanal"}
+              {showMFA
+                ? "Insira o código gerado pelo seu aplicativo"
+                : showResetPassword
+                  ? "Digite sua nova senha abaixo"
+                  : showForgotPassword
+                    ? "Enviaremos um link para seu email"
+                    : "CRM e Gestor de Atendimento Omnicanal"}
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            {/* Reset Password Form (after clicking email link) */}
-            {showResetPassword ? (
+            {showMFA ? (
+              <div className="space-y-6">
+                <div className="flex flex-col items-center gap-6">
+                  <div className="p-3 bg-primary/10 rounded-full text-primary">
+                    <ShieldCheck className="w-8 h-8" />
+                  </div>
+
+                  <div className="flex justify-center">
+                    <InputOTP
+                      maxLength={6}
+                      value={mfaOtp}
+                      onChange={setMfaOtp}
+                      onComplete={() => handleMFAVerify()}
+                      disabled={loading}
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => handleMFAVerify()}
+                    className="w-full"
+                    disabled={mfaOtp.length !== 6 || loading}
+                  >
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Verificar e Entrar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full"
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      setShowMFA(false);
+                      setMfaOtp("");
+                    }}
+                    disabled={loading}
+                  >
+                    Voltar para o login
+                  </Button>
+                </div>
+              </div>
+            ) : showResetPassword ? (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="new-password">Nova Senha</Label>

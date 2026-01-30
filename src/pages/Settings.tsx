@@ -37,6 +37,7 @@ import NotificationSettings from '@/components/tickets/NotificationSettings';
 import ChangePasswordDialog from '@/components/auth/ChangePasswordDialog';
 import IntegrationsSettings from '@/components/settings/IntegrationsSettings';
 import ModuleSettings from '@/components/settings/ModuleSettings';
+import { TwoFactorAuth } from '@/components/auth/TwoFactorAuth';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -316,14 +317,8 @@ const Settings: React.FC = () => {
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg opacity-50 cursor-not-allowed border border-transparent">
-                    <div className="flex items-center gap-3">
-                      <Lock className="w-4 h-4 text-muted-foreground" />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-foreground">Autenticação em duas etapas</span>
-                        <span className="text-xs text-muted-foreground">Em breve</span>
-                      </div>
-                    </div>
+                  <div className="pt-2">
+                    <TwoFactorAuth />
                   </div>
                 </div>
               </CardContent>

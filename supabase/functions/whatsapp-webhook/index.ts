@@ -105,13 +105,14 @@ serve(async (req) => {
       const supabase = createClient(supabaseUrl, supabaseKey);
 
       for (const entry of payload.entry || []) {
-        for (const change of entry.changes || []) {
+        // Use Promise.all to process changes in parallel
+        await Promise.all((entry.changes || []).map(async (change) => {
           const value = change.value;
           const phoneNumberId = value.metadata?.phone_number_id;
 
           if (!phoneNumberId) {
             console.warn("No phone_number_id found in payload metadata");
-            continue;
+            return;
           }
 
           // Fetch the specific integration for this phone_number_id
@@ -125,45 +126,50 @@ serve(async (req) => {
 
           if (intError || !integration) {
             console.error(`No active integration found for phone_number_id: ${phoneNumberId}`, intError);
-            continue;
+            return;
           }
 
           const ownerId = integration.owner_id;
           console.log(`Resolved owner_id: ${ownerId} for phone_number_id: ${phoneNumberId}`);
 
-          // Process incoming messages
+          // Cache for settings to avoid multiple lookups for the same owner
+          const { data: settingsData } = await supabase
+            .from("system_settings")
+            .select("value")
+            .eq("owner_id", ownerId)
+            .eq("key", "tenant_config")
+            .maybeSingle();
+
+          const tenantConfig = settingsData?.value || {};
+          const aiConfig = tenantConfig.ai || {};
+          const audioEnabled = aiConfig.audioTranscriptionEnabled ?? true;
+          const bufferEnabled = aiConfig.messageBufferEnabled ?? true;
+          const bufferTime = aiConfig.messageBufferTimeSeconds ?? 10;
+
+          // Process incoming messages in parallel
           if (value.messages && value.messages.length > 0) {
-            for (const message of value.messages) {
+            const processedMessageIds = new Set<string>();
+
+            await Promise.all(value.messages.map(async (message) => {
+              // Deduplicate within the same payload
+              if (processedMessageIds.has(message.id)) return;
+              processedMessageIds.add(message.id);
+
               const whatsappContact = value.contacts?.[0];
               const whatsappNumber = message.from;
               const contactName = whatsappContact?.profile?.name || "Contato WhatsApp";
 
               console.log("Processing message:", {
+                id: message.id,
                 from: whatsappNumber,
                 type: message.type,
-                contactName: contactName,
               });
-
-              // Fetch System Settings for this owner to check AI features
-              const { data: settingsData } = await supabase
-                .from("system_settings")
-                .select("value")
-                .eq("owner_id", ownerId)
-                .eq("key", "tenant_config")
-                .maybeSingle();
-
-              const tenantConfig = settingsData?.value || {};
-              const aiConfig = tenantConfig.ai || {};
-              const audioEnabled = aiConfig.audioTranscriptionEnabled ?? true;
-              const bufferEnabled = aiConfig.messageBufferEnabled ?? true;
-              const bufferTime = aiConfig.messageBufferTimeSeconds ?? 10;
 
               let automationTriggered = false;
 
               // Extract message content
               let messageContent = "";
               let messageType = message.type;
-              let attachmentUrl = "";
               let attachmentType = "";
 
               switch (message.type) {
@@ -181,7 +187,6 @@ serve(async (req) => {
                   if (audioEnabled && message.audio?.id) {
                     try {
                       console.log("Transcribing audio:", message.audio.id);
-                      // 1. Get media URL from WhatsApp
                       const whatsappToken = integration?.config?.access_token || Deno.env.get("WHATSAPP_ACCESS_TOKEN");
                       const mediaResponse = await fetch(`https://graph.facebook.com/v18.0/${message.audio.id}`, {
                         headers: { "Authorization": `Bearer ${whatsappToken}` }
@@ -189,13 +194,11 @@ serve(async (req) => {
                       const mediaData = await mediaResponse.json();
 
                       if (mediaData.url) {
-                        // 2. Download media file
                         const fileResponse = await fetch(mediaData.url, {
                           headers: { "Authorization": `Bearer ${whatsappToken}` }
                         });
                         const audioBlob = await fileResponse.blob();
 
-                        // 3. Transcribe with Whisper
                         const formData = new FormData();
                         formData.append("file", audioBlob, "audio.ogg");
                         formData.append("model", "whisper-1");
@@ -210,7 +213,6 @@ serve(async (req) => {
                         const whisperData = await whisperResponse.json();
                         if (whisperData.text) {
                           messageContent = `[Áudio Transcrito]: ${whisperData.text}`;
-                          console.log("Transcription success:", whisperData.text);
                         }
                       }
                     } catch (transError) {
@@ -229,23 +231,15 @@ serve(async (req) => {
               // ==========================================
               // AUTO-REGISTER CONTACT FROM WHATSAPP
               // ==========================================
-
-              // Check if contact exists
-              const { data: existingContact, error: contactError } = await supabase
+              const { data: existingContact } = await supabase
                 .from("contacts")
-                .select("id, nome, whatsapp")
+                .select("id")
                 .eq("whatsapp", whatsappNumber)
                 .maybeSingle();
 
               let contactId: string;
 
-              if (contactError) {
-                console.error("Error checking contact:", contactError);
-                continue;
-              }
-
               if (!existingContact) {
-                // Create new contact automatically
                 const { data: newContact, error: createError } = await supabase
                   .from("contacts")
                   .insert({
@@ -254,11 +248,7 @@ serve(async (req) => {
                     whatsapp_validated: true,
                     ativo: true,
                     tags: ["captado_whatsapp"],
-                    metadata: {
-                      source: "whatsapp_webhook",
-                      first_message_at: new Date().toISOString(),
-                      wa_profile_name: contactName,
-                    },
+                    metadata: { source: "whatsapp_webhook", wa_profile_name: contactName },
                     owner_id: ownerId,
                   })
                   .select("id")
@@ -266,39 +256,21 @@ serve(async (req) => {
 
                 if (createError) {
                   console.error("Error creating contact:", createError);
-                  continue;
+                  return;
                 }
-
                 contactId = newContact.id;
-                console.log("New contact created automatically:", {
-                  id: contactId,
-                  nome: contactName,
-                  whatsapp: whatsappNumber,
-                });
               } else {
                 contactId = existingContact.id;
-
-                // Update last_message_at for existing contact
-                await supabase
-                  .from("contacts")
-                  .update({
-                    last_message_at: new Date().toISOString(),
-                    whatsapp_validated: true,
-                  })
-                  .eq("id", contactId);
-
-                console.log("Existing contact found:", {
-                  id: contactId,
-                  nome: existingContact.nome,
-                });
+                await supabase.from("contacts").update({
+                  last_message_at: new Date().toISOString(),
+                  whatsapp_validated: true,
+                }).eq("id", contactId);
               }
 
               // ==========================================
               // CREATE OR GET CONVERSATION
               // ==========================================
-
-              // Find the most recent conversation for this contact
-              const { data: existingConversation, error: convError } = await supabase
+              const { data: existingConversation } = await supabase
                 .from("conversations")
                 .select("id, is_bot_active, status")
                 .eq("contact_id", contactId)
@@ -309,13 +281,7 @@ serve(async (req) => {
               let conversationId: string;
               let isBotActive = true;
 
-              if (convError) {
-                console.error("Error checking conversation:", convError);
-                continue;
-              }
-
               if (!existingConversation) {
-                // Create new conversation
                 const { data: newConversation, error: createConvError } = await supabase
                   .from("conversations")
                   .insert({
@@ -331,16 +297,13 @@ serve(async (req) => {
 
                 if (createConvError) {
                   console.error("Error creating conversation:", createConvError);
-                  continue;
+                  return;
                 }
-
                 conversationId = newConversation.id;
-                console.log("New conversation created:", conversationId);
               } else {
                 conversationId = existingConversation.id;
                 isBotActive = existingConversation.is_bot_active ?? true;
 
-                // Update conversation - Re-open if concluded
                 const updateData: any = {
                   last_message_at: new Date().toISOString(),
                   unread_count: 1,
@@ -352,36 +315,27 @@ serve(async (req) => {
                   updateData.is_bot_active = true;
                   updateData.assigned_to = null;
                   isBotActive = true;
-                  console.log("Re-opening concluded conversation:", conversationId);
                 }
 
-                await supabase
-                  .from("conversations")
-                  .update(updateData)
-                  .eq("id", conversationId);
+                await supabase.from("conversations").update(updateData).eq("id", conversationId);
               }
 
               // ==========================================
               // TRIGGER AUTOMATIONS (Welcome / First Message)
               // ==========================================
-
               try {
-                const isNewContact = !existingContact;
-                const isNewConversation = !existingConversation;
-                const triggerType = isNewContact ? "new_contact" : (isNewConversation ? "first_message" : null);
+                const triggerType = !existingContact ? "new_contact" : (!existingConversation ? "first_message" : null);
 
-                if (triggerType) {
-                  // Check if there is an active rule for this trigger type
+                if (triggerType || messageContent) {
                   const { data: activeRules } = await supabase
                     .from("automation_rules")
                     .select("id, trigger_config")
                     .eq("ativo", true)
-                    .eq("owner_id", ownerId)
-                    .or(`trigger_config->>type.eq.new_contact,trigger_config->>type.eq.first_message,trigger_config->>type.eq.keyword`);
+                    .eq("owner_id", ownerId);
 
                   const matchedRule = activeRules?.find((rule: any) => {
                     const config = rule.trigger_config || {};
-                    if (config.type === triggerType) return true;
+                    if (triggerType && config.type === triggerType) return true;
                     if (config.type === "keyword" && messageContent) {
                       const keywords = config.keywords || [];
                       const normalizedMsg = messageContent.toLowerCase();
@@ -392,55 +346,11 @@ serve(async (req) => {
 
                   if (matchedRule) {
                     const finalTriggerType = (matchedRule.trigger_config as any).type;
-                    console.log(`Triggering automation: ${finalTriggerType} (Rule: ${matchedRule.id})`);
-                    // We don't await this to avoid delaying the webhook response
                     fetch(`${supabaseUrl}/functions/v1/welcome-automation`, {
                       method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${supabaseKey}`,
-                      },
-                      body: JSON.stringify({
-                        contact_id: contactId,
-                        trigger_type: finalTriggerType,
-                        conversation_id: conversationId,
-                        rule_id: matchedRule.id,
-                      }),
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
+                      body: JSON.stringify({ contact_id: contactId, trigger_type: finalTriggerType, conversation_id: conversationId, rule_id: matchedRule.id }),
                     }).catch(err => console.error("Error triggering automation:", err));
-
-                    automationTriggered = true;
-                  }
-                } else if (messageContent) {
-                  // If no welcome/first_message, still check for keywords
-                  const { data: keywordRules } = await supabase
-                    .from("automation_rules")
-                    .select("id, trigger_config")
-                    .eq("ativo", true)
-                    .eq("owner_id", ownerId)
-                    .contains("trigger_config", { type: "keyword" });
-
-                  const matchedRule = keywordRules?.find((rule: any) => {
-                    const keywords = (rule.trigger_config as any).keywords || [];
-                    const normalizedMsg = messageContent.toLowerCase();
-                    return keywords.some((kw: string) => normalizedMsg.includes(kw.toLowerCase()));
-                  });
-
-                  if (matchedRule) {
-                    console.log(`Triggering keyword automation: ${matchedRule.id}`);
-                    fetch(`${supabaseUrl}/functions/v1/welcome-automation`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${supabaseKey}`,
-                      },
-                      body: JSON.stringify({
-                        contact_id: contactId,
-                        trigger_type: "keyword",
-                        conversation_id: conversationId,
-                        rule_id: matchedRule.id,
-                      }),
-                    }).catch(err => console.error("Error triggering automation:", err));
-
                     automationTriggered = true;
                   }
                 }
@@ -451,56 +361,53 @@ serve(async (req) => {
               // ==========================================
               // SAVE INCOMING MESSAGE
               // ==========================================
-
               const { data: savedMsg, error: msgError } = await supabase
                 .from("messages")
                 .insert({
                   conversation_id: conversationId,
                   content: messageContent,
-                  sender_type: "servidor",
+                  sender_type: "contact", // Corrected: incoming from WhatsApp is from contact
                   message_type: messageType,
                   whatsapp_message_id: message.id,
                   attachment_type: attachmentType || null,
-                  metadata: {
-                    wa_timestamp: message.timestamp,
-                    wa_contact_name: contactName,
-                  },
+                  metadata: { wa_timestamp: message.timestamp, wa_contact_name: contactName },
                 })
                 .select("id")
                 .single();
 
               if (msgError) {
+                if (msgError.code === '23505') {
+                  console.log("Duplicate message ID detected, skipping AI trigger:", message.id);
+                  return;
+                }
                 console.error("Error saving message:", msgError);
-              } else {
-                console.log("Message saved successfully");
               }
 
               // ==========================================
               // TRIGGER AI RESPONSE IF BOT IS ACTIVE
               // ==========================================
-
               if (isBotActive && (message.type === "text" || message.type === "audio") && messageContent && !automationTriggered) {
                 try {
-                  // Buffer e Histórico
                   if (bufferEnabled) {
-                    console.log(`Buffer enabled. Waiting ${bufferTime}s...`);
+                    console.log(`Buffer enabled for ${message.id}. Waiting ${bufferTime}s...`);
                     await new Promise(resolve => setTimeout(resolve, bufferTime * 1000));
 
-                    // Check if this is still the last message from user to avoid multiple AI triggers
+                    // Check if this is still the last message from user
                     const { data: latestMsg } = await supabase
                       .from("messages")
-                      .select("id")
+                      .select("id, sender_type")
                       .eq("conversation_id", conversationId)
-                      .in("sender_type", ["contact", "servidor"])
                       .order("created_at", { ascending: false })
                       .limit(1)
                       .maybeSingle();
 
-                    if (latestMsg && latestMsg.id !== savedMsg?.id) {
-                      console.log("Newer message found after buffer. Skipping AI trigger for this instance.");
+                    if (latestMsg && latestMsg.id !== savedMsg?.id && latestMsg.sender_type === "contact") {
+                      console.log(`Newer contact message (${latestMsg.id}) found after buffer for ${message.id}. Skipping.`);
                       return;
                     }
                   }
+
+                  // Fetch current history
                   const { data: history } = await supabase
                     .from("messages")
                     .select("content, sender_type")
@@ -511,61 +418,32 @@ serve(async (req) => {
                   const formattedHistory = (history || [])
                     .reverse()
                     .map((msg: any) => ({
-                      role: msg.sender_type === "servidor" ? "user" : "assistant",
+                      role: msg.sender_type === "contact" ? "user" : "assistant",
                       content: msg.content,
                     }));
 
-                  // If history is empty (shouldn't be as we just saved the current message), 
-                  // or just contains the current message, use just the current message.
-                  // Actually, ai-chat might benefit from knowing the full history.
-
-                  const aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+                  await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
                     method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${supabaseKey}`,
-                    },
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
                     body: JSON.stringify({
-                      messages: formattedHistory.length > 0 ? formattedHistory : [{ role: "user", content: messageContent }],
-                      context: {
-                        servidor_nome: contactName,
-                        owner_id: ownerId,
-                        contact_id: contactId,
-                        conversation_id: conversationId,
-                        whatsapp_number: whatsappNumber,
-                      },
+                      messages: formattedHistory,
+                      context: { servidor_nome: contactName, owner_id: ownerId, contact_id: contactId, conversation_id: conversationId, whatsapp_number: whatsappNumber },
                     }),
                   });
-
-                  if (aiResponse.ok) {
-                    const aiData = await aiResponse.json();
-                    console.log("AI Response processed by ai-chat function:", {
-                      needsHumanTransfer: aiData.needsHumanTransfer,
-                      messagePreview: aiData.message?.substring(0, 100),
-                    });
-
-                    // Note: ai-chat now handles saving the message and calling whatsapp-send
-                  }
                 } catch (aiError) {
                   console.error("Error calling AI:", aiError);
                 }
               }
-            }
+            }));
           }
 
           // Process message status updates
           if (value.statuses && value.statuses.length > 0) {
             for (const status of value.statuses) {
-              console.log("Status update:", {
-                message_id: status.id,
-                status: status.status,
-                recipient: status.recipient_id,
-              });
-
-              // TODO: Update message status in database
+              console.log("Status update:", { message_id: status.id, status: status.status });
             }
           }
-        }
+        }));
       }
 
       return new Response(JSON.stringify({ success: true }), {
