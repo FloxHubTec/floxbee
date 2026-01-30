@@ -109,6 +109,8 @@ const LandingPages: React.FC = () => {
             primaryForeground: '#ffffff',
             secondaryColor: '#10b981',
             secondaryForeground: '#ffffff',
+            backgroundColor: '#f9fafb',
+            textColor: '#111827',
             fontFamily: 'Inter',
             logoUrl: ''
         },
@@ -625,6 +627,38 @@ const LandingPages: React.FC = () => {
                                                 <Input
                                                     value={conteudo.layout.secondaryForeground || '#ffffff'}
                                                     onChange={(e) => updateConteudo('layout', { secondaryForeground: e.target.value })}
+                                                    className="font-mono text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Cor de Fundo</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={conteudo.layout.backgroundColor || '#f9fafb'}
+                                                    onChange={(e) => updateConteudo('layout', { backgroundColor: e.target.value })}
+                                                    className="w-12 h-10 p-1 cursor-pointer"
+                                                />
+                                                <Input
+                                                    value={conteudo.layout.backgroundColor || '#f9fafb'}
+                                                    onChange={(e) => updateConteudo('layout', { backgroundColor: e.target.value })}
+                                                    className="font-mono text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Cor do Texto Base</Label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    type="color"
+                                                    value={conteudo.layout.textColor || '#111827'}
+                                                    onChange={(e) => updateConteudo('layout', { textColor: e.target.value })}
+                                                    className="w-12 h-10 p-1 cursor-pointer"
+                                                />
+                                                <Input
+                                                    value={conteudo.layout.textColor || '#111827'}
+                                                    onChange={(e) => updateConteudo('layout', { textColor: e.target.value })}
                                                     className="font-mono text-xs"
                                                 />
                                             </div>

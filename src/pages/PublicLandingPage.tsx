@@ -162,6 +162,8 @@ const PublicLandingPage: React.FC = () => {
     const primaryForegroundHex = content.layout?.primaryForeground || '#ffffff';
     const secondaryColorHex = content.layout?.secondaryColor || '#10b981';
     const secondaryForegroundHex = content.layout?.secondaryForeground || '#ffffff';
+    const backgroundColorHex = content.layout?.backgroundColor || '#f9fafb';
+    const textColorHex = content.layout?.textColor || '#111827';
     const fontFamily = content.layout?.fontFamily || 'Inter';
 
     // Helper to convert HEX to HSL for Tailwind compatibility
@@ -197,6 +199,8 @@ const PublicLandingPage: React.FC = () => {
     const primaryForegroundHsl = hexToHsl(primaryForegroundHex);
     const secondaryHsl = hexToHsl(secondaryColorHex);
     const secondaryForegroundHsl = hexToHsl(secondaryForegroundHex);
+    const backgroundHsl = hexToHsl(backgroundColorHex);
+    const textHsl = hexToHsl(textColorHex);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -227,6 +231,8 @@ const PublicLandingPage: React.FC = () => {
                 '--primary-foreground': primaryForegroundHsl,
                 '--secondary': secondaryHsl,
                 '--secondary-foreground': secondaryForegroundHsl,
+                '--background': backgroundHsl,
+                '--foreground': textHsl,
                 'fontFamily': fontFamily + ', sans-serif'
             } as React.CSSProperties}
         >
